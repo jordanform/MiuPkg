@@ -1,0 +1,39 @@
+## @file
+#  MiU Application INF
+#
+#  Copyright (c) 2025, Your Company. All rights reserved.<BR>
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+#
+
+[Defines]
+  INF_VERSION                    = 0x0001001B
+  BASE_NAME                      = MiU
+  FILE_GUID                      = 8A1B2C3D-4E5F-6789-ABCD-1234567890AB
+  MODULE_TYPE                    = UEFI_APPLICATION
+  VERSION_STRING                 = 0.1
+  ENTRY_POINT                    = UefiMain
+
+[Sources]
+  MiU.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  MiUPkg/MiUPkg.dec
+
+[LibraryClasses]
+  UefiApplicationEntryPoint
+  UefiLib
+  BaseLib
+  PrintLib
+  MemoryAllocationLib
+
+[Protocols]
+  gEfiPciIoProtocolGuid ## CONSUMES
+
+[Pcd]
+
+[BuildOptions]
+  RELEASE_VS2022_X64_LINK_FLAGS = /SAFESEH:NO
+
+[Depex]
+  TRUE

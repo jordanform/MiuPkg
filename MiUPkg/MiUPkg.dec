@@ -1,0 +1,32 @@
+## @file
+#  MiU Package
+#
+#  FAT 32 Driver
+#  Copyright (c) 2007 - 2014, Intel Corporation. All rights reserved.<BR>
+#
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+#
+##
+
+[Defines]
+  DEC_SPECIFICATION = 0x0001001A
+  PACKAGE_NAME      = MiUpkg
+  PACKAGE_GUID      = 7B2A1E2C-5F3B-4A1C-9B2D-8C1F2A3B4C5D
+  PACKAGE_VERSION   = 0.1
+
+[LibraryClasses]
+  ##  @libraryclass  Provides library functions for common UEFI operations.
+  ##UefiLib|Include/Library/UefiLib.h
+
+  ##  @libraryclass  Provides string functions, linked list functions, math functions, synchronization functions and CPU architecture specific functions.
+  ##BaseLib|Include/Library/BaseLib.h
+
+  ##  @libraryclass  Provides library services to get and set Platform Configuration Database entries.
+  ##PcdLib|Include/Library/PcdLib.h
+
+  ##  @libraryclass  Provides services to print a formatted string to a buffer. All combinations of Unicode and ASCII strings are supported.
+  ##PrintLib|Include/Library/PrintLib.h
+
+  ##  @libraryclass  Provides services to allocate and free memory buffers of various memory types and alignments.
+  ##MemoryAllocationLib|Include/Library/MemoryAllocationLib.h
+
