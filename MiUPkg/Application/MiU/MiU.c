@@ -10,6 +10,38 @@
 
 #define MAX_DEVICES  256
 
+// Simple PCI ID to name mapping table
+typedef struct {
+  UINT16     VendorId;
+  UINT16     DeviceId;
+  CHAR16    *Name;
+} PCI_NAME_ENTRY;
+
+STATIC PCI_NAME_ENTRY mPciNameTable[] = {
+  { 0x8086, 0x1237, L"Intel 82441FX MARS Pentium Pro to PCI" },
+  { 0x8086, 0x7000, L"Intel 82371SB ISA bridge" },
+  { 0x8086, 0x7010, L"Intel Triton PIIX3 IDE controller" },
+  { 0x8086, 0x7113, L"Intel 82371AB Power Management Bridge" },
+  { 0x1234, 0x1111, L"Sample Device" },
+  { 0,      0,      NULL }
+};
+
+// Lookup human-readable name from Vendor and Device IDs
+STATIC
+CONST CHAR16*
+GetPciDeviceName(
+  IN UINT16 VendorId,
+  IN UINT16 DeviceId
+  )
+{
+  for (UINTN i = 0; mPciNameTable[i].Name != NULL; i++) {
+    if (mPciNameTable[i].VendorId == VendorId && mPciNameTable[i].DeviceId == DeviceId) {
+      return mPciNameTable[i].Name;
+    }
+  }
+  return L"Unknown Device";
+}
+
 /**
   Data structure describing one PCI device entry in the table.
 */
@@ -20,6 +52,8 @@ typedef struct {
   UINT8                  Bus;
   UINT8                  Dev;
   UINT8                  Func;
+  UINT16                 VendorId;
+  UINT16                 DeviceId;
 } PCI_ENTRY;
 
 STATIC PCI_ENTRY *mPciList   = NULL;  // Pointer to dynamically-allocated PCI entry array
@@ -80,6 +114,22 @@ EnumeratePci (VOID)
       Print(L"[ERROR] GetLocation failed for handle %u: %r\n", Idx, Status);
       continue;
     }
+
+    // Read Vendor and Device IDs
+    Entry->PciIo->Pci.Read(
+      Entry->PciIo,
+      EfiPciIoWidthUint16,
+      0x00,
+      1,
+      &Entry->VendorId
+    );
+    Entry->PciIo->Pci.Read(
+      Entry->PciIo,
+      EfiPciIoWidthUint16,
+      0x02,
+      1,
+      &Entry->DeviceId
+    );    
   }
 
   mPciCount = HandleCount;
@@ -98,16 +148,40 @@ DrawDeviceList (VOID)
   EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL *ConOut = gST->ConOut;
   ConOut->ClearScreen (ConOut);
 
-  for (UINTN Idx = 0; Idx < mPciCount; ++Idx) {
-    BOOLEAN Sel = (Idx == mSelected);
-    ConOut->SetAttribute (ConOut,
-      Sel ? EFI_TEXT_ATTR (EFI_BLACK, EFI_LIGHTGRAY)  // Highlight
-          : EFI_TEXT_ATTR (EFI_LIGHTGRAY, EFI_BLUE)); // Normal
+  // Draw header row
+  ConOut->ClearScreen(ConOut);
+  ConOut->SetAttribute(ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_RED));
+  Print(
+    L"%-8s %-22s %-15s\n",
+    L"Name",
+    L"Vendor:Device",
+    L"Seg/Bus:Dev:Fun"
+    );
+  ConOut->SetAttribute(ConOut, EFI_TEXT_ATTR(EFI_LIGHTGRAY, EFI_BLUE));
 
-    Print (L"%02x:%02x.%x\n",
-           mPciList[Idx].Bus,
-           mPciList[Idx].Dev,
-           mPciList[Idx].Func);
+  // Each device
+  for (UINTN Index = 0; Index < mPciCount; Index++) {
+    PCI_ENTRY *E = &mPciList[Index];
+    BOOLEAN    Sel = (Index == mSelected);
+    if (Sel) {
+      ConOut->SetAttribute(ConOut, EFI_TEXT_ATTR(EFI_BLACK, EFI_LIGHTGREEN));
+    }
+    // Device name
+    CONST CHAR16 *Name = GetPciDeviceName(E->VendorId, E->DeviceId);
+    // Print: Location+Name, Vendor:Device, Seg/Bus:Dev:Fun
+    Print(
+      L"%02x:%02x.%x %-30s %04x:%04x %02x/%02x:%02x:%x\n",
+      E->Bus,
+      E->Dev,
+      E->Func,
+      Name,
+      E->VendorId,
+      E->DeviceId,
+      0,        // Segment (always 0 in most systems)
+      E->Bus,
+      E->Dev,
+      E->Func
+    );    
   }
 
   // Restore default attribute
@@ -120,29 +194,51 @@ DrawDeviceList (VOID)
 */
 STATIC
 VOID
-ShowConfigSpace (PCI_ENTRY *Entry)
+ShowConfigSpace(PCI_ENTRY *Entry)
 {
-  UINT8  Data[256];
-  UINT32 Offset;
+  UINT8 Data[256];
 
-  // Read DWORD-by-DWORD for simplicity (ASCII hyphen)
-  for (Offset = 0; Offset < 256; Offset += 4) {
-    Entry->PciIo->Pci.Read (Entry->PciIo, EfiPciIoWidthUint32, Offset, 1, &Data[Offset]);
+  // Read full 256-byte config space
+  for (UINT32 Offset = 0; Offset < 256; Offset += 4) {
+    Entry->PciIo->Pci.Read(
+      Entry->PciIo,
+      EfiPciIoWidthUint32,
+      Offset,
+      1,
+      &Data[Offset]
+    );
   }
 
-  gST->ConOut->ClearScreen (gST->ConOut);
+  gST->ConOut->ClearScreen(gST->ConOut);
 
-  for (Offset = 0; Offset < 256; Offset += 16) {
-    Print (L"%02x: ", Offset);
-    for (UINTN i = 0; i < 16; ++i) {
-      Print (L"%02x ", Data[Offset + i]);
+  // Print selected device header
+  gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_BLUE));
+  Print(
+    L"Device:%02x:%02x.%x   VID:DID = %04x:%04x\n\n",
+    Entry->Bus,
+    Entry->Dev,
+    Entry->Func,
+    Entry->VendorId,
+    Entry->DeviceId
+  );
+  gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGRAY, EFI_BLUE));
+
+  // Dump config space rows
+  for (UINT32 Offset = 0; Offset < 256; Offset += 16) {
+    Print(L"%02x: ", Offset);
+    for (UINTN i = 0; i < 16; i++) {
+      Print(L"%02x ", Data[Offset + i]);
     }
-    Print (L"\n");
+    Print(L"\n");
   }
 
-  Print (L"\nPress any key to return...");
+  // Wait for ESC key to return
+  Print(L"\nPress ESC to return...");
   EFI_INPUT_KEY Key;
-  gST->ConIn->ReadKeyStroke (gST->ConIn, &Key);
+  do {
+    gBS->WaitForEvent(1, &gST->ConIn->WaitForKey, NULL);
+    gST->ConIn->ReadKeyStroke(gST->ConIn, &Key);
+  } while (Key.ScanCode != SCAN_ESC);
 }
 
 /**
