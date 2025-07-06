@@ -77,26 +77,31 @@ EnumeratePci (VOID)
   UINTN       HandleCount;
   UINTN       Idx;
 
+  // Locate all handles that support the EFI_PCI_IO_PROTOCOL
   Status = gBS->LocateHandleBuffer (ByProtocol,
                                     &gEfiPciIoProtocolGuid,
                                     NULL,
                                     &HandleCount,
                                     &HandleBuf);
   if (EFI_ERROR (Status)) {
+    // Return error if no PCI devices found or other error
     return Status;
   }
 
+  // Allocate memory for the PCI entry array
   mPciList = AllocateZeroPool (HandleCount * sizeof (PCI_ENTRY));
   if (mPciList == NULL) {
+    // Free handle buffer and return if allocation fails
     FreePool (HandleBuf);
     return EFI_OUT_OF_RESOURCES;
   }
 
-
+  // For each PCI device handle, get protocol and device info
   for (Idx = 0; Idx < HandleCount; ++Idx) {
     PCI_ENTRY *Entry = &mPciList[Idx];
     Entry->Handle   = HandleBuf[Idx];
 
+    // Get the EFI_PCI_IO_PROTOCOL interface for this handle
     Status = gBS->HandleProtocol (HandleBuf[Idx],
                                   &gEfiPciIoProtocolGuid,
                                   (VOID **)&Entry->PciIo);
@@ -105,6 +110,7 @@ EnumeratePci (VOID)
       continue;
     }
 
+    // Get the PCI device's segment, bus, device, and function numbers
     Status = Entry->PciIo->GetLocation (Entry->PciIo,
                                         (UINTN *)&Entry->Segment,
                                         (UINTN *)&Entry->Bus,
@@ -115,7 +121,7 @@ EnumeratePci (VOID)
       continue;
     }
 
-    // Read Vendor and Device IDs
+    // Read Vendor ID from PCI config space offset 0x00
     Entry->PciIo->Pci.Read(
       Entry->PciIo,
       EfiPciIoWidthUint16,
@@ -123,6 +129,7 @@ EnumeratePci (VOID)
       1,
       &Entry->VendorId
     );
+    // Read Device ID from PCI config space offset 0x02
     Entry->PciIo->Pci.Read(
       Entry->PciIo,
       EfiPciIoWidthUint16,
@@ -132,7 +139,9 @@ EnumeratePci (VOID)
     );    
   }
 
+  // Store the number of PCI devices found
   mPciCount = HandleCount;
+  // Free the handle buffer
   FreePool (HandleBuf);
   return EFI_SUCCESS;
 }
