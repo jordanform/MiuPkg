@@ -183,9 +183,9 @@ DrawDeviceList (VOID)
 
     // Set color for the current row based on whether it is selected
     if (Index == mSelected) {
-      ConOut->SetAttribute(ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_GREEN));
+      ConOut->SetAttribute(ConOut, EFI_TEXT_ATTR(EFI_YELLOW, EFI_GREEN));
     } else {
-      ConOut->SetAttribute(ConOut, EFI_TEXT_ATTR(EFI_LIGHTGRAY, EFI_BLUE));
+      ConOut->SetAttribute(ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_BLUE));
     }
 
     Print(
@@ -212,7 +212,10 @@ STATIC
 VOID
 ShowConfigSpace(PCI_ENTRY *Entry)
 {
-  UINT8 Data[256];
+  UINT8         Data[256];
+  EFI_INPUT_KEY Key;
+  UINT8         RowSel = 0, ColSel = 0;
+  BOOLEAN       ExitView = FALSE;
 
   // Read full 256-byte config space
   for (UINT32 Offset = 0; Offset < 256; Offset += 4) {
@@ -225,8 +228,95 @@ ShowConfigSpace(PCI_ENTRY *Entry)
     );
   }
 
-  gST->ConOut->ClearScreen(gST->ConOut);
+  // Navigation loop
+  while (!ExitView) {
+    // Clear and re?print header
+    gST->ConOut->ClearScreen(gST->ConOut);
+    gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_BLUE));
+    Print(
+      L"Device:%02x:%02x.%x   VID:DID = %04x:%04x\n\n",
+      Entry->Bus,
+      Entry->Dev,
+      Entry->Func,
+      Entry->VendorId,
+      Entry->DeviceId
+    );
 
+    // Column labels
+    // indent under the row-label column (4 chars: "00: ")
+    Print(L"    ");
+    for (UINT8 c = 0; c < 16; c++) {
+      if (c == ColSel) {
+        // selected column white on blue
+        gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_BLUE));
+      } else {
+        // unselected red on blue
+        gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_RED, EFI_BLUE));
+      }
+      Print(L"%02x ", c);
+    }
+    Print(L"\n");
+
+    // Draw the 16x16 table
+    for (UINT8 Row = 0; Row < 16; Row++) {
+      UINT8 Base = Row * 16;
+
+      // Row label (offset)
+      if (Row == RowSel) {
+        // selected row white on blue
+        gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_BLUE));
+      } else {
+        // other rows red on blue
+        gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_RED, EFI_BLUE));
+      }
+      Print(L"%02x: ", Base);
+
+      // 16 bytes in this row
+      for (UINT8 Col = 0; Col < 16; Col++) {
+        if (Row == RowSel && Col == ColSel) {
+          // selected cell white on green
+          gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_GREEN));
+        } else {
+          // other cells lightgray on blue
+          gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGRAY, EFI_BLUE));
+        }
+        Print(L"%02x ", Data[Base + Col]);
+      }
+      Print(L"\n");
+    }
+
+    // Prompt
+    gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_BLUE));
+    Print(L"\nUse Up/Down/Left/Right arrows to move, ESC to return\n");
+
+    // Wait and process a key
+    gBS->WaitForEvent(1, &gST->ConIn->WaitForKey, NULL);
+    gST->ConIn->ReadKeyStroke(gST->ConIn, &Key);
+
+    switch (Key.ScanCode) {
+      case SCAN_UP:
+        if (RowSel > 0) RowSel--;
+        break;
+      case SCAN_DOWN:
+        if (RowSel < 15) RowSel++;
+        break;
+      case SCAN_LEFT:
+        if (ColSel > 0) ColSel--;
+        break;
+      case SCAN_RIGHT:
+        if (ColSel < 15) ColSel++;
+        break;
+      case SCAN_ESC:
+        ExitView = TRUE;
+        break;
+      default:
+        break;
+    }
+  }
+
+  /*
+  gST->ConOut->ClearScreen(gST->ConOut);
+  
   // Print selected device header
   gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_BLUE));
   Print(
@@ -250,11 +340,14 @@ ShowConfigSpace(PCI_ENTRY *Entry)
 
   // Wait for ESC key to return
   Print(L"\nPress ESC to return...");
-  EFI_INPUT_KEY Key;
   do {
     gBS->WaitForEvent(1, &gST->ConIn->WaitForKey, NULL);
     gST->ConIn->ReadKeyStroke(gST->ConIn, &Key);
   } while (Key.ScanCode != SCAN_ESC);
+  */
+
+  // Restore default before returning
+  gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGRAY, EFI_BLUE));
 }
 
 // --- Placeholder Functions (to be implemented) ---
