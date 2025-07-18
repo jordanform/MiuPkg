@@ -216,6 +216,7 @@ ShowConfigSpace(PCI_ENTRY *Entry)
   EFI_INPUT_KEY Key;
   UINT8         RowSel = 0, ColSel = 0;
   BOOLEAN       ExitView = FALSE;
+  BOOLEAN       ViewBits = FALSE;    
 
   // Read full 256-byte config space
   for (UINT32 Offset = 0; Offset < 256; Offset += 4) {
@@ -283,6 +284,24 @@ ShowConfigSpace(PCI_ENTRY *Entry)
         Print(L"%02x ", Data[Base + Col]);
       }
       Print(L"\n");
+
+      // inline bit-view under selected cell only
+      if (ViewBits && Row == RowSel) {
+        UINT8 Val = Data[RowSel * 16 + ColSel];
+        // indent: 4 chars for "00: " + 3 chars per cell before ColSel
+        UINTN indent = 4 + (ColSel * 3);
+        for (UINTN i = 0; i < indent; i++) {
+          Print(L" ");
+        }
+        // highlight the bit-string
+        gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_GREEN));
+        for (INTN b = 7; b >= 0; b--) {
+          Print(L"%d", (Val >> b) & 1);
+        }
+        // restore normal text attr for next lines
+        gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGRAY, EFI_BLUE));
+        Print(L"\n");
+      }
     }
 
     // Prompt
@@ -310,6 +329,10 @@ ShowConfigSpace(PCI_ENTRY *Entry)
         ExitView = TRUE;
         break;
       default:
+      // detect Space by UnicodeChar, not ScanCode
+        if (Key.UnicodeChar == L' ') {
+          ViewBits = !ViewBits;
+        }
         break;
     }
   }
