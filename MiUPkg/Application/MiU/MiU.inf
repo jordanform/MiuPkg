@@ -15,6 +15,7 @@
 
 [Sources]
   MiU.c
+  MiU.h
 
 [Packages]
   MdePkg/MdePkg.dec

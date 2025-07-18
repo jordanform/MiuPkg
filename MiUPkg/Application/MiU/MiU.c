@@ -70,7 +70,7 @@ STATIC UINTN      mSelected  = 0;     // Current index highlighted in the list
 */
 STATIC
 EFI_STATUS
-EnumeratePci (VOID)
+EnumeratePciDevices (VOID)
 {
   EFI_STATUS Status;
   EFI_HANDLE *HandleBuf;
@@ -154,43 +154,50 @@ STATIC
 VOID
 DrawDeviceList (VOID)
 {
-  EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL *ConOut = gST->ConOut;
-  ConOut->ClearScreen (ConOut);
-
-  // Draw header row
+  EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL *ConOut = gST->ConOut;  
   ConOut->ClearScreen(ConOut);
+
+  // Draw header row with corrected spacing
   ConOut->SetAttribute(ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_RED));
   Print(
-    L"%-8s %-22s %-15s\n",
+    L" %-48s %-15s %s\n",
     L"Name",
     L"Vendor:Device",
     L"Seg/Bus:Dev:Fun"
     );
   ConOut->SetAttribute(ConOut, EFI_TEXT_ATTR(EFI_LIGHTGRAY, EFI_BLUE));
 
-  // Each device
+  // Get each device
   for (UINTN Index = 0; Index < mPciCount; Index++) {
     PCI_ENTRY *E = &mPciList[Index];
-    BOOLEAN    Sel = (Index == mSelected);
-    if (Sel) {
-      ConOut->SetAttribute(ConOut, EFI_TEXT_ATTR(EFI_BLACK, EFI_LIGHTGREEN));
-    }
-    // Device name
     CONST CHAR16 *Name = GetPciDeviceName(E->VendorId, E->DeviceId);
-    // Print: Location+Name, Vendor:Device, Seg/Bus:Dev:Fun
-    Print(
-      L"%02x:%02x.%x %-30s %04x:%04x %02x/%02x:%02x:%x\n",
-      E->Bus,
+    CHAR16 NameColumn[128];
+    UnicodeSPrint(
+      NameColumn,
+      sizeof(NameColumn),
+      L" %02X:%02X %s",
       E->Dev,
       E->Func,
-      Name,
+      Name
+    );
+
+    // Set color for the current row based on whether it is selected
+    if (Index == mSelected) {
+      ConOut->SetAttribute(ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_GREEN));
+    } else {
+      ConOut->SetAttribute(ConOut, EFI_TEXT_ATTR(EFI_LIGHTGRAY, EFI_BLUE));
+    }
+
+    Print(
+      L"%-49s %04X:%04X       %02X/%02X:%02X:%02X\n",
+      NameColumn,
       E->VendorId,
       E->DeviceId,
-      0,        // Segment (always 0 in most systems)
+      0,
       E->Bus,
       E->Dev,
       E->Func
-    );    
+    );
   }
 
   // Restore default attribute
@@ -250,39 +257,70 @@ ShowConfigSpace(PCI_ENTRY *Entry)
   } while (Key.ScanCode != SCAN_ESC);
 }
 
+// --- Placeholder Functions (to be implemented) ---
+EFI_STATUS ReadSmbiosData(VOID) {
+    Print(L"\n--- Reading SMBIOS Data (Not yet implemented) ---\n");
+    // Your SMBIOS reading logic will go here
+    return EFI_UNSUPPORTED;
+}
+
+EFI_STATUS ReadAcpiTables(VOID) {
+    Print(L"\n--- Reading ACPI Tables (Not yet implemented) ---\n");
+    // Your ACPI reading logic will go here
+    return EFI_UNSUPPORTED;
+}
+
 /**
   Main loop: use arrow keys to move the highlight, ENTER to view config space,
   ESC to quit the application.
 */
 STATIC
 VOID
-MainLoop (VOID)
-{
+MainLoop (VOID) {
   EFI_INPUT_KEY Key;
-  while (TRUE) {
-    DrawDeviceList ();
+  BOOLEAN       ExitLoop = FALSE;
 
-    gBS->WaitForEvent (1, &gST->ConIn->WaitForKey, NULL);
-    gST->ConIn->ReadKeyStroke (gST->ConIn, &Key);
+  // Perform the initial draw before starting the loop.
+  DrawDeviceList();
 
+  while (!ExitLoop) {
+    BOOLEAN NeedRedraw = FALSE;
+
+    // Wait for a key to be pressed.
+    gBS->WaitForEvent(1, &gST->ConIn->WaitForKey, NULL);
+    gST->ConIn->ReadKeyStroke(gST->ConIn, &Key);
+
+    // Process the key that was pressed.
     switch (Key.ScanCode) {
       case SCAN_UP:
         if (mSelected > 0) {
           --mSelected;
+          NeedRedraw = TRUE; // Mark that a redraw is needed.
         }
         break;
+
       case SCAN_DOWN:
         if (mSelected + 1 < mPciCount) {
           ++mSelected;
+          NeedRedraw = TRUE; // Mark that a redraw is needed.
         }
         break;
+
       case SCAN_ESC:
-        return;                     // Exit program
+        ExitLoop = TRUE; // Signal to exit the main loop.
+        break;
+
       case SCAN_NULL:
         if (Key.UnicodeChar == CHAR_CARRIAGE_RETURN) {
-          ShowConfigSpace (&mPciList[mSelected]);
+          ShowConfigSpace(&mPciList[mSelected]);
+          NeedRedraw = TRUE; // Redraw the list when returning from the config space view.
         }
         break;
+    }
+
+    // If a key was pressed that changed the state, redraw the screen.
+    if (NeedRedraw) {
+      DrawDeviceList();
     }
   }
 }
@@ -294,7 +332,7 @@ EFI_STATUS
 EFIAPI
 UefiMain (IN EFI_HANDLE ImageHandle, IN EFI_SYSTEM_TABLE *SystemTable)
 {
-  EFI_STATUS Status = EnumeratePci ();
+  EFI_STATUS Status = EnumeratePciDevices ();
   if (EFI_ERROR (Status)) {
     Print (L"PCI enumeration failed: %r\n", Status);
     return Status;
