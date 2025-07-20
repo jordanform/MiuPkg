@@ -7,31 +7,6 @@
 #include <Protocol/PciIo.h>
 #include <MiU.h>
 
-// Remove redundant extern, ensure correct include for GUID definition
-/*
-#define CMD_ROW        0
-#define CONTENT_ROW    1
-
-#define MAX_DEVICES  256
-
-// Simple PCI ID to name mapping table
-typedef struct {
-  UINT16     VendorId;
-  UINT16     DeviceId;
-  CHAR16    *Name;
-} PCI_NAME_ENTRY;
-
-STATIC PCI_NAME_ENTRY mPciNameTable[] = {
-  { 0x8086, 0x1237, L"Intel 82441FX MARS Pentium Pro to PCI" },
-  { 0x8086, 0x7000, L"Intel 82371SB ISA bridge" },
-  { 0x8086, 0x7010, L"Intel Triton PIIX3 IDE controller" },
-  { 0x8086, 0x7113, L"Intel 82371AB Power Management Bridge" },
-  { 0x8086, 0x100E, L"Intel Ethernet controller" },
-  { 0x1234, 0x1111, L"VGA controller" },
-  { 0,      0,      NULL }
-};
-*/
-
 // Lookup human-readable name from Vendor and Device IDs
 STATIC
 CONST CHAR16*
@@ -47,23 +22,6 @@ GetPciDeviceName(
   }
   return L"Unknown Device";
 }
-
-/**
-  Data structure describing one PCI device entry in the table.
-*/
-/*
-typedef struct {
-  EFI_HANDLE             Handle;
-  EFI_PCI_IO_PROTOCOL   *PciIo;
-  UINT8                  Segment;
-  UINT8                  Bus;
-  UINT8                  Dev;
-  UINT8                  Func;
-  UINT16                 VendorId;
-  UINT16                 DeviceId;
-} PCI_ENTRY;
-
-*/
 
 STATIC PCI_ENTRY *mPciList   = NULL;  // Pointer to dynamically-allocated PCI entry array
 STATIC UINTN      mPciCount  = 0;     // Total number of devices found
@@ -382,11 +340,167 @@ ShowConfigSpace(PCI_ENTRY *Entry)
   gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGRAY, EFI_BLUE));
 }
 
-// --- Placeholder Functions (to be implemented) ---
-EFI_STATUS ReadSmbiosData(VOID) {
-    Print(L"\n--- Reading SMBIOS Data (Not yet implemented) ---\n");
-    // Your SMBIOS reading logic will go here
-    return EFI_UNSUPPORTED;
+/**
+  Retrieves a string from an SMBIOS record.
+  @param  SmbiosHeader  Pointer to the SMBIOS structure.
+  @param  StringNumber  The 1-based index of the string to retrieve.
+  @return               A pointer to the CHAR8 string, or a default string.
+*/
+STATIC
+CONST CHAR8*
+GetSmbiosString (
+  IN SMBIOS_STRUCTURE         *SmbiosHeader,
+  IN SMBIOS_TABLE_STRING      StringNumber
+  )
+{
+  UINTN  i;
+  CHAR8 *String;
+
+  // Find the end of the formatted area
+  String = (CHAR8 *)SmbiosHeader + SmbiosHeader->Length;
+
+  // A string number of 0 means "no string"
+  if (StringNumber == 0) {
+    return "Not specified";
+  }
+
+  // Look for the referenced string
+  for (i = 1; i < StringNumber; i++) {
+    // Skip over the previous strings
+    while (*String != 0) {
+      String++;
+    }
+    String++; // Skip over the null terminator
+  }
+
+  // If we've gone past the end of the structure, return an error
+  // (The SMBIOS structure is terminated by a double-null.)
+  if (*String == 0) {
+    return "Invalid String";
+  }
+
+  return String;
+}
+
+/**
+  Returns a human-readable name for a given SMBIOS type ID.
+*/
+STATIC
+CONST CHAR16*
+GetSmbiosTypeName(
+  IN UINT8 Type
+  )
+{
+  switch(Type) {
+    case SMBIOS_TYPE_BIOS_INFORMATION:                return L"BIOS Information";
+    case SMBIOS_TYPE_SYSTEM_INFORMATION:              return L"System Information";
+    case SMBIOS_TYPE_BASEBOARD_INFORMATION:           return L"Baseboard Information";
+    case SMBIOS_TYPE_SYSTEM_ENCLOSURE:                return L"System Enclosure or Chassis";
+    case SMBIOS_TYPE_PROCESSOR_INFORMATION:           return L"Processor Information";
+    case SMBIOS_TYPE_MEMORY_CONTROLLER_INFORMATION:   return L"Memory Controller Information";
+    case SMBIOS_TYPE_MEMORY_MODULE_INFORMATON:        return L"Memory Module Information";
+    case SMBIOS_TYPE_CACHE_INFORMATION:               return L"Cache Information";
+    case SMBIOS_TYPE_PORT_CONNECTOR_INFORMATION:      return L"Port Connector Information";
+    case SMBIOS_TYPE_SYSTEM_SLOTS:                    return L"System Slots";
+    case SMBIOS_TYPE_ONBOARD_DEVICE_INFORMATION:    return L"On Board Devices Information";
+    case SMBIOS_TYPE_OEM_STRINGS:                     return L"OEM Strings";
+    case SMBIOS_TYPE_SYSTEM_CONFIGURATION_OPTIONS:    return L"System Configuration Options";
+    case SMBIOS_TYPE_BIOS_LANGUAGE_INFORMATION:       return L"BIOS Language Information";
+    case SMBIOS_TYPE_GROUP_ASSOCIATIONS:              return L"Group Associations";
+    case SMBIOS_TYPE_SYSTEM_EVENT_LOG:                return L"System Event Log";
+    case SMBIOS_TYPE_PHYSICAL_MEMORY_ARRAY:           return L"Physical Memory Array";
+    case SMBIOS_TYPE_MEMORY_DEVICE:                   return L"Memory Device";
+    case SMBIOS_TYPE_32BIT_MEMORY_ERROR_INFORMATION:  return L"32-bit Memory Error Information";
+    case SMBIOS_TYPE_MEMORY_ARRAY_MAPPED_ADDRESS:     return L"Memory Array Mapped Address";
+    case SMBIOS_TYPE_MEMORY_DEVICE_MAPPED_ADDRESS:    return L"Memory Device Mapped Address";
+    case SMBIOS_TYPE_BUILT_IN_POINTING_DEVICE:        return L"Built-in Pointing Device";
+    case SMBIOS_TYPE_PORTABLE_BATTERY:                return L"Portable Battery";
+    case SMBIOS_TYPE_SYSTEM_RESET:                    return L"System Reset";
+    case SMBIOS_TYPE_HARDWARE_SECURITY:               return L"Hardware Security";
+    case SMBIOS_TYPE_SYSTEM_POWER_CONTROLS:           return L"System Power Controls";
+    case SMBIOS_TYPE_VOLTAGE_PROBE:                   return L"Voltage Probe";
+    case SMBIOS_TYPE_COOLING_DEVICE:                  return L"Cooling Device";
+    case SMBIOS_TYPE_TEMPERATURE_PROBE:               return L"Temperature Probe";
+    case SMBIOS_TYPE_ELECTRICAL_CURRENT_PROBE:        return L"Electrical Current Probe";
+    case SMBIOS_TYPE_OUT_OF_BAND_REMOTE_ACCESS:       return L"Out-of-Band Remote Access";
+    case SMBIOS_TYPE_BOOT_INTEGRITY_SERVICE:          return L"Boot Integrity Services (BIS)";
+    case SMBIOS_TYPE_SYSTEM_BOOT_INFORMATION:         return L"System Boot Information";
+    case SMBIOS_TYPE_64BIT_MEMORY_ERROR_INFORMATION:  return L"64-bit Memory Error Information";
+    case SMBIOS_TYPE_MANAGEMENT_DEVICE:               return L"Management Device";
+    case SMBIOS_TYPE_MANAGEMENT_DEVICE_COMPONENT:     return L"Management Device Component";
+    case SMBIOS_TYPE_MANAGEMENT_DEVICE_THRESHOLD_DATA:return L"Management Device Threshold Data";
+    case SMBIOS_TYPE_MEMORY_CHANNEL:                  return L"Memory Channel";
+    case SMBIOS_TYPE_IPMI_DEVICE_INFORMATION:         return L"IPMI Device Information";
+    case SMBIOS_TYPE_SYSTEM_POWER_SUPPLY:             return L"System Power Supply";
+    case SMBIOS_TYPE_ADDITIONAL_INFORMATION:          return L"Additional Information";
+    case SMBIOS_TYPE_ONBOARD_DEVICES_EXTENDED_INFORMATION: return L"Onboard Devices Extended Info";
+    case SMBIOS_TYPE_MANAGEMENT_CONTROLLER_HOST_INTERFACE: return L"Management Controller Host I/F";
+    case SMBIOS_TYPE_INACTIVE:                        return L"Inactive";
+    case SMBIOS_TYPE_END_OF_TABLE:                    return L"End-of-Table";
+    default:                                          return L"Unknown or OEM-specific Type";
+  }
+}
+
+/**
+  Replaces the placeholder. Locates the SMBIOS protocol, iterates through
+  the tables, and displays key information.
+*/
+VOID
+ReadSmbiosData(VOID) {
+    EFI_STATUS                  Status;
+    EFI_SMBIOS_PROTOCOL         *Smbios;
+    EFI_SMBIOS_HANDLE           SmbiosHandle;
+    EFI_SMBIOS_TABLE_HEADER     *Record;
+    EFI_INPUT_KEY               Key;
+
+    // 1. Locate the SMBIOS protocol
+    Status = gBS->LocateProtocol(&gEfiSmbiosProtocolGuid, NULL, (VOID **)&Smbios);
+    if (EFI_ERROR(Status)) {
+        Print(L"Could not locate SMBIOS protocol: %r\n", Status);
+        gBS->WaitForEvent(1, &gST->ConIn->WaitForKey, NULL);
+        gST->ConIn->ReadKeyStroke(gST->ConIn, &Key);
+        return;
+    }
+
+    gST->ConOut->ClearScreen(gST->ConOut);
+    gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_BLUE));
+    Print(L"--- SMBIOS Information (v%d.%d) ---\n\n", Smbios->MajorVersion, Smbios->MinorVersion);
+
+    // 2. Loop through all SMBIOS tables
+    SmbiosHandle = SMBIOS_HANDLE_PI_RESERVED;
+    while (TRUE) {
+        Status = Smbios->GetNext(Smbios, &SmbiosHandle, NULL, &Record, NULL);
+        if (EFI_ERROR(Status)) {
+            // No more tables found
+            break;
+        }
+
+        // 3. Parse and display specific tables
+        switch (Record->Type) {
+            case SMBIOS_TYPE_BIOS_INFORMATION: {
+                SMBIOS_TABLE_TYPE0 *Type0 = (SMBIOS_TABLE_TYPE0 *)Record;
+                Print(L"BIOS Information (Type 0):\n");
+                // Use %a for CHAR8 (ASCII) strings from SMBIOS
+                Print(L"  Vendor: %a\n", GetSmbiosString((SMBIOS_STRUCTURE *)Record, Type0->Vendor));
+                Print(L"  Version: %a\n", GetSmbiosString((SMBIOS_STRUCTURE *)Record, Type0->BiosVersion));
+                Print(L"  Release Date: %a\n\n", GetSmbiosString((SMBIOS_STRUCTURE *)Record, Type0->BiosReleaseDate));
+                break;
+            }
+            case SMBIOS_TYPE_SYSTEM_INFORMATION: {
+                SMBIOS_TABLE_TYPE1 *Type1 = (SMBIOS_TABLE_TYPE1 *)Record;
+                Print(L"System Information (Type 1):\n");
+                Print(L"  Manufacturer: %a\n", GetSmbiosString((SMBIOS_STRUCTURE *)Record, Type1->Manufacturer));
+                Print(L"  Product Name: %a\n", GetSmbiosString((SMBIOS_STRUCTURE *)Record, Type1->ProductName));
+                Print(L"  Version: %a\n", GetSmbiosString((SMBIOS_STRUCTURE *)Record, Type1->Version));
+                Print(L"  Serial Number: %a\n\n", GetSmbiosString((SMBIOS_STRUCTURE *)Record, Type1->SerialNumber));
+                break;
+            }
+        }
+    }
+
+    Print(L"\nPress any key to return...");
+    gBS->WaitForEvent(1, &gST->ConIn->WaitForKey, NULL);
+    gST->ConIn->ReadKeyStroke(gST->ConIn, &Key);
 }
 
 EFI_STATUS ReadAcpiTables(VOID) {
@@ -439,6 +553,9 @@ MainLoop (VOID) {
         if (Key.UnicodeChar == CHAR_CARRIAGE_RETURN) {
           ShowConfigSpace(&mPciList[mSelected]);
           NeedRedraw = TRUE; // Redraw the list when returning from the config space view.
+        } else if (Key.UnicodeChar == L's' || Key.UnicodeChar == L'S') {
+          ReadSmbiosData();
+          NeedRedraw = TRUE;
         }
         break;
     }

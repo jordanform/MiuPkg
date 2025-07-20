@@ -30,6 +30,7 @@
 
 [Protocols]
   gEfiPciIoProtocolGuid ## CONSUMES
+  gEfiSmbiosProtocolGuid ## CONSUMES
 
 [Pcd]
 

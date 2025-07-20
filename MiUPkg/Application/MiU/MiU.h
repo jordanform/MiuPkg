@@ -4,6 +4,8 @@
 #include <Uefi.h>
 #include <Library/UefiLib.h>
 #include <Protocol/PciIo.h>
+#include <Protocol/Smbios.h>
+#include <IndustryStandard/Smbios.h>
 
 #define MAX_DEVICES  256
 #define CMD_ROW      0
@@ -38,9 +40,16 @@ typedef struct {
   UINT16                 DeviceId;
 } PCI_ENTRY;
 
-// Function Prototypes for your features
+// SMBIOS table entry
+typedef struct {
+  EFI_SMBIOS_HANDLE        Handle;
+  EFI_SMBIOS_TABLE_HEADER *Header;
+} SMBIOS_ENTRY;
+
+// Function that enumerates PCI devices
 EFI_STATUS EnumeratePciDevices(VOID);
-EFI_STATUS ReadSmbiosData(VOID);
+// Function that read smbios data
+VOID ReadSmbiosData(VOID);
 EFI_STATUS ReadAcpiTables(VOID);
 // Add more function prototypes here as you create new features
 
