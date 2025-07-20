@@ -382,6 +382,11 @@ GetSmbiosString (
   return String;
 }
 
+// Globals for the SMBIOS list
+STATIC SMBIOS_ENTRY *mSmbiosList = NULL;
+STATIC UINTN         mSmbiosCount = 0;
+STATIC UINTN         mSmbiosSelected = 0;
+
 /**
   Returns a human-readable name for a given SMBIOS type ID.
 */
@@ -442,65 +447,222 @@ GetSmbiosTypeName(
 }
 
 /**
-  Replaces the placeholder. Locates the SMBIOS protocol, iterates through
-  the tables, and displays key information.
+  Displays the detailed information for a single SMBIOS record.
 */
+STATIC
 VOID
-ReadSmbiosData(VOID) {
-    EFI_STATUS                  Status;
-    EFI_SMBIOS_PROTOCOL         *Smbios;
-    EFI_SMBIOS_HANDLE           SmbiosHandle;
-    EFI_SMBIOS_TABLE_HEADER     *Record;
-    EFI_INPUT_KEY               Key;
+ShowSmbiosRecordDetail(
+  IN SMBIOS_ENTRY *Entry
+  )
+{
+  EFI_INPUT_KEY Key;
 
-    // 1. Locate the SMBIOS protocol
-    Status = gBS->LocateProtocol(&gEfiSmbiosProtocolGuid, NULL, (VOID **)&Smbios);
-    if (EFI_ERROR(Status)) {
-        Print(L"Could not locate SMBIOS protocol: %r\n", Status);
-        gBS->WaitForEvent(1, &gST->ConIn->WaitForKey, NULL);
-        gST->ConIn->ReadKeyStroke(gST->ConIn, &Key);
-        return;
+  // Set the desired attribute and clear the entire screen with it.
+  // This fills the whole screen with a blue background.
+  gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_BLUE));
+  gST->ConOut->ClearScreen(gST->ConOut);
+  
+  Print(L"--- SMBIOS Record Detail ---\n");
+  Print(L"Type: %d (%s)\n", Entry->Header->Type, GetSmbiosTypeName(Entry->Header->Type));
+  Print(L"Handle: 0x%04X\n", Entry->Handle);
+  Print(L"Length: 0x%02X\n\n", Entry->Header->Length);
+
+  // Specific decoders can be added here. For now, we show a hex dump for all types.
+  // This gives you a foundation to build on.
+  switch(Entry->Header->Type) {
+    case SMBIOS_TYPE_SYSTEM_INFORMATION: {
+      SMBIOS_TABLE_TYPE1 *Rec = (SMBIOS_TABLE_TYPE1 *)Entry->Header;
+      Print(L"  Manufacturer: %a\n", GetSmbiosString(Entry->Header, Rec->Manufacturer));
+      Print(L"  Product Name: %a\n", GetSmbiosString(Entry->Header, Rec->ProductName));
+      Print(L"  Version:      %a\n", GetSmbiosString(Entry->Header, Rec->Version));
+      Print(L"  Serial Number:%a\n", GetSmbiosString(Entry->Header, Rec->SerialNumber));
+      break;
     }
 
-    gST->ConOut->ClearScreen(gST->ConOut);
-    gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_BLUE));
-    Print(L"--- SMBIOS Information (v%d.%d) ---\n\n", Smbios->MajorVersion, Smbios->MinorVersion);
-
-    // 2. Loop through all SMBIOS tables
-    SmbiosHandle = SMBIOS_HANDLE_PI_RESERVED;
-    while (TRUE) {
-        Status = Smbios->GetNext(Smbios, &SmbiosHandle, NULL, &Record, NULL);
-        if (EFI_ERROR(Status)) {
-            // No more tables found
-            break;
-        }
-
-        // 3. Parse and display specific tables
-        switch (Record->Type) {
-            case SMBIOS_TYPE_BIOS_INFORMATION: {
-                SMBIOS_TABLE_TYPE0 *Type0 = (SMBIOS_TABLE_TYPE0 *)Record;
-                Print(L"BIOS Information (Type 0):\n");
-                // Use %a for CHAR8 (ASCII) strings from SMBIOS
-                Print(L"  Vendor: %a\n", GetSmbiosString((SMBIOS_STRUCTURE *)Record, Type0->Vendor));
-                Print(L"  Version: %a\n", GetSmbiosString((SMBIOS_STRUCTURE *)Record, Type0->BiosVersion));
-                Print(L"  Release Date: %a\n\n", GetSmbiosString((SMBIOS_STRUCTURE *)Record, Type0->BiosReleaseDate));
-                break;
-            }
-            case SMBIOS_TYPE_SYSTEM_INFORMATION: {
-                SMBIOS_TABLE_TYPE1 *Type1 = (SMBIOS_TABLE_TYPE1 *)Record;
-                Print(L"System Information (Type 1):\n");
-                Print(L"  Manufacturer: %a\n", GetSmbiosString((SMBIOS_STRUCTURE *)Record, Type1->Manufacturer));
-                Print(L"  Product Name: %a\n", GetSmbiosString((SMBIOS_STRUCTURE *)Record, Type1->ProductName));
-                Print(L"  Version: %a\n", GetSmbiosString((SMBIOS_STRUCTURE *)Record, Type1->Version));
-                Print(L"  Serial Number: %a\n\n", GetSmbiosString((SMBIOS_STRUCTURE *)Record, Type1->SerialNumber));
-                break;
-            }
-        }
+    case SMBIOS_TYPE_BIOS_INFORMATION: {
+      SMBIOS_TABLE_TYPE0 *Rec = (SMBIOS_TABLE_TYPE0 *)Entry->Header;
+      Print(L"  Vendor:       %a\n", GetSmbiosString(Entry->Header, Rec->Vendor));
+      Print(L"  Version:      %a\n", GetSmbiosString(Entry->Header, Rec->BiosVersion));
+      Print(L"  Release Date: %a\n", GetSmbiosString(Entry->Header, Rec->BiosReleaseDate));
+      break;
     }
 
-    Print(L"\nPress any key to return...");
+    // You can add more detailed decoders for other types here...
+
+    default: {
+      // Generic hex dump for types without a specific decoder
+      UINT8 *Data = (UINT8 *)Entry->Header;
+      Print(L"Raw data dump:\n  Ofs: 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F\n");
+      Print(L"  --------------------------------------------------\n");
+      for (UINTN i = 0; i < Entry->Header->Length; i += 16) {
+        Print(L"  %02Xh: ", i);
+        for (UINTN j = 0; j < 16; j++) {
+          if (i + j < Entry->Header->Length) {
+            Print(L"%02X ", Data[i+j]);
+          }
+        }
+        Print(L"\n");
+      }
+      break;
+    }
+  }
+
+  Print(L"\nPress ESC to return...");
+  do {
     gBS->WaitForEvent(1, &gST->ConIn->WaitForKey, NULL);
     gST->ConIn->ReadKeyStroke(gST->ConIn, &Key);
+  } while (Key.ScanCode != SCAN_ESC);
+}
+
+/**
+  Draws the list of all found SMBIOS tables.
+*/
+STATIC
+VOID
+DrawSmbiosList()
+{
+  UINTN BackgroundColor;
+  CHAR16 HandleString[16];
+
+  // Clear the screen
+  gST->ConOut->ClearScreen(gST->ConOut);
+
+  // Header
+  gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_RED));
+  Print(L"%-54s %-8s %s\n", L" SMBIOS Type", L"Handle", L"Length");
+
+  // List items
+  for (UINTN i = 0; i < mSmbiosCount; i++) {
+    SMBIOS_ENTRY *E = &mSmbiosList[i];
+
+    // Determine the background color for the entire row
+    BackgroundColor = (i == mSmbiosSelected) ? EFI_GREEN : EFI_BLUE;
+
+    // 1. Print the type number in WHITE
+    gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, BackgroundColor));
+    Print(L" (%03d) ", E->Header->Type);
+
+    // 2. Print the type name in YELLOW with padding
+    gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_YELLOW, BackgroundColor));
+    // Total column width is 54. The number part "(XXX) " is 7 chars.
+    // So we pad the name to 47 characters.
+    Print(L"%-47s", GetSmbiosTypeName(E->Header->Type));
+
+    // 3. Print the Handle and Length in WHITE (with alignment fix)
+    gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, BackgroundColor));
+    
+    // Create a string for the handle to apply padding.
+    UnicodeSPrint(HandleString, sizeof(HandleString), L"%04Xh", E->Handle);
+    
+    // Print the handle left-aligned in an 8-character field, then the length.
+    Print(L"%-8s %04Xh\n", HandleString, E->Header->Length);
+  }
+
+  // Restore default colors
+  gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGRAY, EFI_BLACK));
+}
+
+/**
+  Main loop for navigating the SMBIOS list.
+*/
+STATIC
+VOID
+SmbiosMainLoop()
+{
+  EFI_INPUT_KEY Key;
+  BOOLEAN ExitLoop = FALSE;
+
+  mSmbiosSelected = 0;
+  DrawSmbiosList();
+
+  while(!ExitLoop) {
+    gBS->WaitForEvent(1, &gST->ConIn->WaitForKey, NULL);
+    gST->ConIn->ReadKeyStroke(gST->ConIn, &Key);
+
+    switch(Key.ScanCode) {
+      case SCAN_UP:
+        if (mSmbiosSelected > 0) {
+          mSmbiosSelected--;
+          DrawSmbiosList();
+        }
+        break;
+      case SCAN_DOWN:
+        if (mSmbiosSelected + 1 < mSmbiosCount) {
+          mSmbiosSelected++;
+          DrawSmbiosList();
+        }
+        break;
+      case SCAN_ESC:
+        ExitLoop = TRUE;
+        break;
+      case SCAN_NULL:
+        if (Key.UnicodeChar == CHAR_CARRIAGE_RETURN) {
+          ShowSmbiosRecordDetail(&mSmbiosList[mSmbiosSelected]);
+          // Redraw the list after returning from detail view
+          DrawSmbiosList();
+        }
+        break;
+    }
+  }
+}
+
+
+/**
+  Main entry point for the SMBIOS feature.
+*/
+VOID
+ReadSmbiosData(VOID)
+{
+  EFI_STATUS                  Status;
+  EFI_SMBIOS_PROTOCOL        *Smbios;
+  EFI_SMBIOS_HANDLE           TempHandle;
+  EFI_SMBIOS_TABLE_HEADER    *TempRecord;
+  UINTN                       Index;
+
+  Status = gBS->LocateProtocol(&gEfiSmbiosProtocolGuid, NULL, (VOID **)&Smbios);
+  if (EFI_ERROR(Status)) {
+    Print(L"Could not locate SMBIOS protocol: %r\n", Status);
+    gBS->Stall(2000000); // 2 seconds
+    return;
+  }
+
+  // 1. First pass: Count the tables to allocate memory
+  mSmbiosCount = 0;
+  TempHandle = SMBIOS_HANDLE_PI_RESERVED;
+  while(TRUE) {
+    Status = Smbios->GetNext(Smbios, &TempHandle, NULL, &TempRecord, NULL);
+    if (EFI_ERROR(Status)) break;
+    mSmbiosCount++;
+  }
+
+  if (mSmbiosCount == 0) return;
+
+  // 2. Allocate memory for our list
+  mSmbiosList = AllocateZeroPool(mSmbiosCount * sizeof(SMBIOS_ENTRY));
+  if (mSmbiosList == NULL) {
+    Print(L"Error: Not enough memory for SMBIOS list.\n");
+    gBS->Stall(2000000);
+    return;
+  }
+
+  // 3. Second pass: Populate the list
+  Index = 0;
+  TempHandle = SMBIOS_HANDLE_PI_RESERVED;
+  while(TRUE) {
+    Status = Smbios->GetNext(Smbios, &TempHandle, NULL, &TempRecord, NULL);
+    if (EFI_ERROR(Status)) break;
+    mSmbiosList[Index].Handle = TempHandle;
+    mSmbiosList[Index].Header = TempRecord;
+    Index++;
+  }
+
+  // 4. Enter the interactive navigation loop
+  SmbiosMainLoop();
+
+  // 5. Clean up
+  FreePool(mSmbiosList);
+  mSmbiosList = NULL;
+  mSmbiosCount = 0;
 }
 
 EFI_STATUS ReadAcpiTables(VOID) {
