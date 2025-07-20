@@ -230,26 +230,38 @@ VOID ReadSmbiosData(VOID) {
   EFI_SMBIOS_HANDLE           TempHandle;
   EFI_SMBIOS_TABLE_HEADER    *TempRecord;
   UINTN                       Index;
+
+  // Locate the SMBIOS protocol
   Status = gBS->LocateProtocol(&gEfiSmbiosProtocolGuid, NULL, (VOID **)&Smbios);
   if (EFI_ERROR(Status)) {
     Print(L"Could not locate SMBIOS protocol: %r\n", Status);
     gBS->Stall(2000000);
     return;
   }
+
+  // Initialize globals
   mSmbiosCount = 0;
+
+  // First pass to count the number of SMBIOS records
   TempHandle = SMBIOS_HANDLE_PI_RESERVED;
   while(TRUE) {
     Status = Smbios->GetNext(Smbios, &TempHandle, NULL, &TempRecord, NULL);
     if (EFI_ERROR(Status)) break;
     mSmbiosCount++;
   }
+
+  // If no records found, exit early
   if (mSmbiosCount == 0) return;
+
+  // Allocate memory for the SMBIOS entries
   mSmbiosList = AllocateZeroPool(mSmbiosCount * sizeof(SMBIOS_ENTRY));
   if (mSmbiosList == NULL) {
     Print(L"Error: Not enough memory for SMBIOS list.\n");
     gBS->Stall(2000000);
     return;
   }
+
+  // Second pass to actually read the SMBIOS records into the list
   Index = 0;
   TempHandle = SMBIOS_HANDLE_PI_RESERVED;
   while(TRUE) {
@@ -259,7 +271,16 @@ VOID ReadSmbiosData(VOID) {
     mSmbiosList[Index].Header = TempRecord;
     Index++;
   }
+
+  // Check if we read the expected number of records
+  if (Index != mSmbiosCount) {
+    Print(L"Warning: Mismatch in SMBIOS count (%d vs %d)\n", Index, mSmbiosCount);
+  }
+
+  // Start the main loop for SMBIOS record navigation
   SmbiosMainLoop();
+
+  // Free the allocated memory for SMBIOS entries
   FreePool(mSmbiosList);
   mSmbiosList = NULL;
   mSmbiosCount = 0;
