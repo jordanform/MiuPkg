@@ -6,10 +6,15 @@
 #include <IndustryStandard/SmBios.h>
 #include "Smbios.h"
 
-STATIC SMBIOS_ENTRY *mSmbiosList = NULL;
-STATIC UINTN         mSmbiosCount = 0;
-STATIC UINTN         mSmbiosSelected = 0;
 
+// Globals for SMBIOS record list and navigation
+STATIC SMBIOS_ENTRY *mSmbiosList = NULL;   // Array of SMBIOS_ENTRY structs
+STATIC UINTN         mSmbiosCount = 0;     // Number of SMBIOS records found
+STATIC UINTN         mSmbiosSelected = 0;  // Currently selected record index
+
+/**
+  Returns a human-readable name for a given SMBIOS type ID.
+*/
 STATIC CONST CHAR16* GetSmbiosTypeName(IN UINT8 Type) {
   switch(Type) {
     case SMBIOS_TYPE_BIOS_INFORMATION:                return L"BIOS Information";
@@ -61,6 +66,12 @@ STATIC CONST CHAR16* GetSmbiosTypeName(IN UINT8 Type) {
   }
 }
 
+/**
+  Retrieves a string from an SMBIOS record.
+  @param  SmbiosHeader  Pointer to the SMBIOS structure.
+  @param  StringNumber  The 1-based index of the string to retrieve.
+  @return               A pointer to the CHAR8 string, or a default string.
+*/
 STATIC CONST CHAR8* GetSmbiosString(IN SMBIOS_STRUCTURE *SmbiosHeader, IN SMBIOS_TABLE_STRING StringNumber) {
   UINTN  i;
   CHAR8 *String;
@@ -74,6 +85,11 @@ STATIC CONST CHAR8* GetSmbiosString(IN SMBIOS_STRUCTURE *SmbiosHeader, IN SMBIOS
   return String;
 }
 
+/**
+  Displays the detailed information for a single SMBIOS record.
+  Shows decoded fields for known types, or a hex dump for unknown types.
+  Waits for ESC key to return.
+*/
 STATIC VOID ShowSmbiosRecordDetail(IN SMBIOS_ENTRY *Entry) {
   EFI_INPUT_KEY Key;
   gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_BLUE));
@@ -121,12 +137,29 @@ STATIC VOID ShowSmbiosRecordDetail(IN SMBIOS_ENTRY *Entry) {
   } while (Key.ScanCode != SCAN_ESC);
 }
 
+/**
+  Draws the list of all found SMBIOS tables.
+  Highlights the currently selected record.
+*/
 STATIC VOID DrawSmbiosList() {
   UINTN BackgroundColor;
   CHAR16 HandleString[16];
+
+  // If no SMBIOS records are available, show a message and return
+  if (mSmbiosList == NULL || mSmbiosCount == 0) {
+    gST->ConOut->ClearScreen(gST->ConOut);
+    Print(L"No SMBIOS records found.\n");
+    return;
+  }
+  
+  // Clear the screen and set the header attributes
   gST->ConOut->ClearScreen(gST->ConOut);
   gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_RED));
+
+  // Print the header
   Print(L"%-54s %-8s %s\n", L" SMBIOS Type", L"Handle", L"Length");
+
+  // Print the list of SMBIOS entries
   for (UINTN i = 0; i < mSmbiosCount; i++) {
     SMBIOS_ENTRY *E = &mSmbiosList[i];
     BackgroundColor = (i == mSmbiosSelected) ? EFI_GREEN : EFI_BLUE;
@@ -138,14 +171,26 @@ STATIC VOID DrawSmbiosList() {
     UnicodeSPrint(HandleString, sizeof(HandleString), L"%04Xh", E->Handle);
     Print(L"%-8s %04Xh\n", HandleString, E->Header->Length);
   }
-  gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGRAY, EFI_BLACK));
+  
+  // Restore default attribute
+  gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGRAY, EFI_BLUE));
 }
 
+/**
+  Main loop for navigating the SMBIOS list and viewing record details.
+  Handles user input for navigation and selection.
+*/
 STATIC VOID SmbiosMainLoop() {
+
+  // Main loop for SMBIOS record selection and display
   EFI_INPUT_KEY Key;
   BOOLEAN ExitLoop = FALSE;
   mSmbiosSelected = 0;
+
+  // Draw the initial list of SMBIOS records
   DrawSmbiosList();
+
+  // Event loop to handle user input
   while(!ExitLoop) {
     gBS->WaitForEvent(1, &gST->ConIn->WaitForKey, NULL);
     gST->ConIn->ReadKeyStroke(gST->ConIn, &Key);
@@ -175,6 +220,10 @@ STATIC VOID SmbiosMainLoop() {
   }
 }
 
+/**
+  Main entry point for the SMBIOS feature.
+  Enumerates SMBIOS tables, allocates memory, and enters navigation loop.
+*/
 VOID ReadSmbiosData(VOID) {
   EFI_STATUS                  Status;
   EFI_SMBIOS_PROTOCOL        *Smbios;
