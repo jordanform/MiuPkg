@@ -18,6 +18,8 @@
   MiU.h
   Smbios.c
   Smbios.h
+  PciDevices.c
+  PciDevices.h
 
 [Packages]
   MdePkg/MdePkg.dec

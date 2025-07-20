@@ -7,111 +7,13 @@
 #include <Protocol/PciIo.h>
 #include <MiU.h>
 #include "Smbios.h"
+#include "PciDevices.h"
 
-// Lookup human-readable name from Vendor and Device IDs
-STATIC
-CONST CHAR16*
-GetPciDeviceName(
-  IN UINT16 VendorId,
-  IN UINT16 DeviceId
-  )
-{
-  for (UINTN i = 0; mPciNameTable[i].Name != NULL; i++) {
-    if (mPciNameTable[i].VendorId == VendorId && mPciNameTable[i].DeviceId == DeviceId) {
-      return mPciNameTable[i].Name;
-    }
-  }
-  return L"Unknown Device";
-}
 
-STATIC PCI_ENTRY *mPciList   = NULL;  // Pointer to dynamically-allocated PCI entry array
-STATIC UINTN      mPciCount  = 0;     // Total number of devices found
-STATIC UINTN      mSelected  = 0;     // Current index highlighted in the list
+// PCI device globals and lookup are now in PciDevices.c/h
 
-/**
-  Enumerate all handles that support the EFI_PCI_IO_PROTOCOL and cache their
-  location information (segment / bus / device / function).
 
-  @retval EFI_SUCCESS           Enumeration succeeded.
-  @retval EFI_OUT_OF_RESOURCES  Memory allocation failure.
-  @retval Others                Propagated status from LocateHandleBuffer().
-*/
-EFI_STATUS
-EnumeratePciDevices (VOID)
-{
-  EFI_STATUS Status;
-  EFI_HANDLE *HandleBuf;
-  UINTN       HandleCount;
-  UINTN       Idx;
-
-  // Locate all handles that support the EFI_PCI_IO_PROTOCOL
-  Status = gBS->LocateHandleBuffer (ByProtocol,
-                                    &gEfiPciIoProtocolGuid,
-                                    NULL,
-                                    &HandleCount,
-                                    &HandleBuf);
-  if (EFI_ERROR (Status)) {
-    // Return error if no PCI devices found or other error
-    return Status;
-  }
-
-  // Allocate memory for the PCI entry array
-  mPciList = AllocateZeroPool (HandleCount * sizeof (PCI_ENTRY));
-  if (mPciList == NULL) {
-    // Free handle buffer and return if allocation fails
-    FreePool (HandleBuf);
-    return EFI_OUT_OF_RESOURCES;
-  }
-
-  // For each PCI device handle, get protocol and device info
-  for (Idx = 0; Idx < HandleCount; ++Idx) {
-    PCI_ENTRY *Entry = &mPciList[Idx];
-    Entry->Handle   = HandleBuf[Idx];
-
-    // Get the EFI_PCI_IO_PROTOCOL interface for this handle
-    Status = gBS->HandleProtocol (HandleBuf[Idx],
-                                  &gEfiPciIoProtocolGuid,
-                                  (VOID **)&Entry->PciIo);
-    if (EFI_ERROR(Status) || Entry->PciIo == NULL) {
-      Print(L"[ERROR] HandleProtocol failed for handle %u: %r\n", Idx, Status);
-      continue;
-    }
-
-    // Get the PCI device's segment, bus, device, and function numbers
-    Status = Entry->PciIo->GetLocation (Entry->PciIo,
-                                        (UINTN *)&Entry->Segment,
-                                        (UINTN *)&Entry->Bus,
-                                        (UINTN *)&Entry->Dev,
-                                        (UINTN *)&Entry->Func);
-    if (EFI_ERROR(Status)) {
-      Print(L"[ERROR] GetLocation failed for handle %u: %r\n", Idx, Status);
-      continue;
-    }
-
-    // Read Vendor ID from PCI config space offset 0x00
-    Entry->PciIo->Pci.Read(
-      Entry->PciIo,
-      EfiPciIoWidthUint16,
-      0x00,
-      1,
-      &Entry->VendorId
-    );
-    // Read Device ID from PCI config space offset 0x02
-    Entry->PciIo->Pci.Read(
-      Entry->PciIo,
-      EfiPciIoWidthUint16,
-      0x02,
-      1,
-      &Entry->DeviceId
-    );    
-  }
-
-  // Store the number of PCI devices found
-  mPciCount = HandleCount;
-  // Free the handle buffer
-  FreePool (HandleBuf);
-  return EFI_SUCCESS;
-}
+// PCI device enumeration is now in PciDevices.c/h
 
 /**
   Draw the command bar at the top of the screen with the given text.
@@ -339,48 +241,6 @@ ShowConfigSpace(PCI_ENTRY *Entry)
 
   // Restore default before returning
   gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGRAY, EFI_BLUE));
-}
-
-/**
-  Retrieves a string from an SMBIOS record.
-  @param  SmbiosHeader  Pointer to the SMBIOS structure.
-  @param  StringNumber  The 1-based index of the string to retrieve.
-  @return               A pointer to the CHAR8 string, or a default string.
-*/
-STATIC
-CONST CHAR8*
-GetSmbiosString (
-  IN SMBIOS_STRUCTURE         *SmbiosHeader,
-  IN SMBIOS_TABLE_STRING      StringNumber
-  )
-{
-  UINTN  i;
-  CHAR8 *String;
-
-  // Find the end of the formatted area
-  String = (CHAR8 *)SmbiosHeader + SmbiosHeader->Length;
-
-  // A string number of 0 means "no string"
-  if (StringNumber == 0) {
-    return "Not specified";
-  }
-
-  // Look for the referenced string
-  for (i = 1; i < StringNumber; i++) {
-    // Skip over the previous strings
-    while (*String != 0) {
-      String++;
-    }
-    String++; // Skip over the null terminator
-  }
-
-  // If we've gone past the end of the structure, return an error
-  // (The SMBIOS structure is terminated by a double-null.)
-  if (*String == 0) {
-    return "Invalid String";
-  }
-
-  return String;
 }
 
 // Globals for the SMBIOS list
