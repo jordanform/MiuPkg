@@ -16,6 +16,8 @@
 [Sources]
   MiU.c
   MiU.h
+  Smbios.c
+  Smbios.h
 
 [Packages]
   MdePkg/MdePkg.dec
