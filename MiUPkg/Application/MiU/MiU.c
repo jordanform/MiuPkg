@@ -18,36 +18,6 @@ EFI_SIMPLE_TEXT_INPUT_EX_PROTOCOL *mInputEx = NULL;
 STATIC VOID ShowHelpPopup(VOID);
 
 /**
-  Draw the command bar at the top of the screen with the given text.
-  The command bar is typically used to display instructions or status.
-  
-  @param BarText  The text to display in the command bar.
-*/
-VOID
-DrawCommandBar(CHAR16 *BarText)
-{
-    EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL  *ConOut = gST->ConOut;
-    UINTN                             Columns, Rows;
-
-    // pick your colours
-    ConOut->SetAttribute(ConOut, EFI_TEXT_ATTR(EFI_BLACK, EFI_LIGHTGRAY));
-
-    // position at (0, 0)
-    ConOut->SetCursorPosition(ConOut, 0, CMD_ROW);
-
-    // make sure you clear the rest of the line
-    ConOut->QueryMode(ConOut,
-        ConOut->Mode->Mode, &Columns, &Rows);
-    Print(L"%s%*s",
-          BarText,
-          (INT32)(Columns - StrLen(BarText)),
-          L"");
-
-    // restore your normal colours for content
-    ConOut->SetAttribute(ConOut, EFI_TEXT_ATTR(EFI_LIGHTGRAY, EFI_BLACK));
-}
-
-/**
   Draw the device list on screen.
   The currently-selected row is rendered with a different background color.
 */
@@ -57,9 +27,6 @@ DrawDeviceList (VOID)
 {
   EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL *ConOut = gST->ConOut;  
   ConOut->ClearScreen(ConOut);
-
-  // draw the command bar again
-  DrawCommandBar(L" File  Config  Edit  Go  Tools  System  Quit ");
 
   // Draw header row with corrected spacing
   ConOut->SetAttribute(ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_RED));
