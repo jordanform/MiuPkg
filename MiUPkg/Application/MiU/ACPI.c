@@ -60,78 +60,134 @@ FindRsdp(
   return EFI_NOT_FOUND;
 }
 
+/**
+  Prints the header row for the ACPI table list.
+*/
+VOID
+PrintAcpiTableHeader(VOID)
+{
+
+    // Clear the screen and set the header attributes
+    gST->ConOut->ClearScreen(gST->ConOut);
+    gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_RED));
+
+    Print(L"  %-12s %-10s %-10s %-8s %-14s %-s\n", 
+        L"ACPI Table", L"Address", L"Length", L"OEMID", L"OEM Table ID", L"Creator ID");
+
+    // Restore default attribute
+    gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGRAY, EFI_BLUE));
+}
+
+/**
+  Prints the entries of a given root table (RSDT or XSDT).
+  
+  @param RootTable      A pointer to the root table (RSDT or XSDT).
+  @param IsXsdt         TRUE if the RootTable is XSDT, FALSE if it's RSDT.
+*/
+VOID
+PrintAcpiTableEntries(
+  IN EFI_ACPI_DESCRIPTION_HEADER *RootTable,
+  IN BOOLEAN IsXsdt
+)
+{
+    UINTN EntryCount;
+    
+    if (IsXsdt) {
+        UINT64 *EntryPtr = (UINT64*)((UINT8*)RootTable + sizeof(EFI_ACPI_DESCRIPTION_HEADER));
+        EntryCount = (RootTable->Length - sizeof(EFI_ACPI_DESCRIPTION_HEADER)) / sizeof(UINT64);
+        for (UINTN i = 0; i < EntryCount; i++) {
+            EFI_ACPI_DESCRIPTION_HEADER* TableHeader = (EFI_ACPI_DESCRIPTION_HEADER*)(UINTN)EntryPtr[i];
+            CHAR8 OemIdStr[7], OemTableIdStr[9], CreatorIdStr[5];
+            
+            CopyMem(OemIdStr, TableHeader->OemId, 6); OemIdStr[6] = '\0';
+            CopyMem(OemTableIdStr, &TableHeader->OemTableId, 8); OemTableIdStr[8] = '\0';
+            *(UINT32*)CreatorIdStr = TableHeader->CreatorId; CreatorIdStr[4] = '\0';
+            
+            Print(L"    %-10a   %-10X %-10X %-8a %-14a %-a\n", 
+                (CHAR8*)&TableHeader->Signature, TableHeader, TableHeader->Length,
+                OemIdStr, OemTableIdStr, CreatorIdStr
+            );
+        }
+    } else { // This is an RSDT with 32-bit pointers
+        UINT32 *EntryPtr = (UINT32*)((UINT8*)RootTable + sizeof(EFI_ACPI_DESCRIPTION_HEADER));
+        EntryCount = (RootTable->Length - sizeof(EFI_ACPI_DESCRIPTION_HEADER)) / sizeof(UINT32);
+        for (UINTN i = 0; i < EntryCount; i++) {
+            EFI_ACPI_DESCRIPTION_HEADER* TableHeader = (EFI_ACPI_DESCRIPTION_HEADER*)(UINTN)EntryPtr[i];
+            CHAR8 OemIdStr[7], OemTableIdStr[9], CreatorIdStr[5];
+            
+            CopyMem(OemIdStr, TableHeader->OemId, 6); OemIdStr[6] = '\0';
+            CopyMem(OemTableIdStr, &TableHeader->OemTableId, 8); OemTableIdStr[8] = '\0';
+            *(UINT32*)CreatorIdStr = TableHeader->CreatorId; CreatorIdStr[4] = '\0';
+            
+            Print(L"    %-10a   %-10X %-10X %-8a %-14a %-a\n", 
+                (CHAR8*)&TableHeader->Signature, TableHeader, TableHeader->Length,
+                OemIdStr, OemTableIdStr, CreatorIdStr
+            );
+        }
+    }
+}
 
 /**
   Main entry point for the ACPI feature.
-  This function finds and lists all available ACPI tables, handling errors internally.
+  Finds and lists all available ACPI tables from both RSDT and XSDT.
 */
 VOID
 ReadAcpiTables(VOID)
 {
     EFI_ACPI_2_0_ROOT_SYSTEM_DESCRIPTION_POINTER *Rsdp = NULL;
+    EFI_ACPI_DESCRIPTION_HEADER                  *Rsdt = NULL;
     EFI_ACPI_DESCRIPTION_HEADER                  *Xsdt = NULL;
-    UINT64                                       *EntryPtr;
-    UINTN                                        EntryCount;
+    UINTN                                        SavedAttribute;
 
+    // Save current text attribute
+    SavedAttribute = gST->ConOut->Mode->Attribute;
+    
+    // FIX: Set colors to Light Gray on Blue background
     gST->ConOut->ClearScreen(gST->ConOut);
-    Print(L"--- Reading ACPI Tables ---\n\n");
+    gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGRAY, EFI_BLUE));
 
-    // 1. Find the Root System Description Pointer (RSDP)
+    PrintAcpiTableHeader();
+    
     if (EFI_ERROR(FindRsdp(&Rsdp))) {
         Print(L"Error: ACPI 2.0+ configuration table not found.\n");
+        gST->ConOut->SetAttribute(gST->ConOut, SavedAttribute); // Restore attribute on exit
         return;
     }
-
-    // 2. Validate the RSDP checksum
     if (!IsValidChecksum(Rsdp, sizeof(EFI_ACPI_2_0_ROOT_SYSTEM_DESCRIPTION_POINTER))) {
         Print(L"Error: ACPI RSDP checksum is invalid.\n");
+        gST->ConOut->SetAttribute(gST->ConOut, SavedAttribute); // Restore attribute on exit
         return;
     }
 
-    Print(L"RSDP found at 0x%p. Revision: %d\n", Rsdp, Rsdp->Revision);
-    
-    // 3. Get the address of the XSDT (Extended System Description Table)
-    //    The XSDT is the 64-bit version of the table list.
+    // --- Process RSDT ---
+    Rsdt = (EFI_ACPI_DESCRIPTION_HEADER*)(UINTN)Rsdp->RsdtAddress;
+    if (Rsdt != NULL && IsValidChecksum(Rsdt, Rsdt->Length)) {
+        // Set color to yellow for the "RSDT" title
+        gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_YELLOW, EFI_BLUE));
+        Print(L"RSDT\n");
+        // Set color back for the header and entries
+        gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGRAY, EFI_BLUE));
+
+        gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_BLUE));
+        PrintAcpiTableEntries(Rsdt, FALSE);
+        gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGRAY, EFI_BLUE));
+        Print(L"\n");
+    }
+
+    // --- Process XSDT ---
     Xsdt = (EFI_ACPI_DESCRIPTION_HEADER*)Rsdp->XsdtAddress;
-    if (Xsdt == NULL) {
-        Print(L"Error: XSDT address is NULL.\n");
-        return;
+    if (Xsdt != NULL && IsValidChecksum(Xsdt, Xsdt->Length)) {
+        // Set color to yellow for the "XSDT" title
+        gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_YELLOW, EFI_BLUE));
+        Print(L"XSDT\n");
+        // Set color back for the header and entries
+        gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGRAY, EFI_BLUE));
+
+        gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_BLUE));
+        PrintAcpiTableEntries(Xsdt, TRUE);
+        gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGRAY, EFI_BLUE));
     }
 
-    // 4. Validate the XSDT checksum
-    if (!IsValidChecksum(Xsdt, Xsdt->Length)) {
-        Print(L"Error: ACPI XSDT checksum is invalid.\n");
-        return;
-    }
-
-    Print(L"XSDT found at 0x%p. Length: %d bytes.\n\n", Xsdt, Xsdt->Length);
-    Print(L"Listing all ACPI tables found in XSDT:\n");
-    Print(L"------------------------------------------\n");
-    Print(L"  Index | Address            | Signature | Length\n");
-    Print(L"------------------------------------------\n");
-
-    // 5. Parse the XSDT to find all other tables
-    EntryPtr = (UINT64*)((UINT8*)Xsdt + sizeof(EFI_ACPI_DESCRIPTION_HEADER));
-    EntryCount = (Xsdt->Length - sizeof(EFI_ACPI_DESCRIPTION_HEADER)) / sizeof(UINT64);
-
-    for (UINTN i = 0; i < EntryCount; i++) {
-        EFI_ACPI_DESCRIPTION_HEADER* TableHeader = (EFI_ACPI_DESCRIPTION_HEADER*)(UINTN)EntryPtr[i];
-        
-        // Convert the 32-bit signature to a printable string
-        CHAR8 SignatureStr[5];
-        *(UINT32*)SignatureStr = TableHeader->Signature;
-        SignatureStr[4] = '\0'; // Null-terminate the string
-
-        // Validate the checksum of each table before printing
-        BOOLEAN IsValid = IsValidChecksum(TableHeader, TableHeader->Length);
-
-        Print(L"   %2d   | 0x%016p | %a        | %d bytes %s\n",
-            i,
-            TableHeader,
-            SignatureStr,
-            TableHeader->Length,
-            IsValid ? L"" : L"(Invalid Checksum!)"
-        );
-    }
-    Print(L"------------------------------------------\n");
+    // Restore original text attribute before returning
+    gST->ConOut->SetAttribute(gST->ConOut, SavedAttribute);
 }
