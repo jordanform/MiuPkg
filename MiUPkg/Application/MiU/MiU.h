@@ -26,21 +26,6 @@ STATIC PCI_NAME_ENTRY mPciNameTable[] = {
   { 0,      0,      NULL }
 };
 
-// PCI device entry
-typedef struct {
-  EFI_HANDLE             Handle;
-  EFI_PCI_IO_PROTOCOL   *PciIo;
-  UINT8                  Segment;
-  UINT8                  Bus;
-  UINT8                  Dev;
-  UINT8                  Func;
-  UINT16                 VendorId;
-  UINT16                 DeviceId;
-} PCI_ENTRY;
-
-// Function Prototypes for your features
-EFI_STATUS EnumeratePciDevices(VOID);
-EFI_STATUS ReadSmbiosData(VOID);
 EFI_STATUS ReadAcpiTables(VOID);
 // Add more function prototypes here as you create new features
 
