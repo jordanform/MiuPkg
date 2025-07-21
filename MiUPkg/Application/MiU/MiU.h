@@ -26,7 +26,6 @@ STATIC PCI_NAME_ENTRY mPciNameTable[] = {
   { 0,      0,      NULL }
 };
 
-EFI_STATUS ReadAcpiTables(VOID);
 // Add more function prototypes here as you create new features
 
 #endif // _MIU_H_

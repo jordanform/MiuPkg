@@ -20,6 +20,8 @@
   Smbios.h
   PciDevices.c
   PciDevices.h
+  ACPI.c
+  ACPI.h
 
 [Packages]
   MdePkg/MdePkg.dec
@@ -31,6 +33,7 @@
   BaseLib
   PrintLib
   MemoryAllocationLib
+  BaseMemoryLib
 
 [Protocols]
   gEfiPciIoProtocolGuid ## CONSUMES
