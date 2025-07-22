@@ -22,6 +22,8 @@
   PciDevices.h
   ACPI.c
   ACPI.h
+  Variables.c
+  Variables.h
 
 [Packages]
   MdePkg/MdePkg.dec
@@ -34,6 +36,8 @@
   PrintLib
   MemoryAllocationLib
   BaseMemoryLib
+  UefiBootServicesTableLib
+  UefiRuntimeServicesTableLib
 
 [Protocols]
   gEfiPciIoProtocolGuid ## CONSUMES

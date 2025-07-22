@@ -10,6 +10,7 @@
 #include "Smbios.h"
 #include "PciDevices.h"
 #include "ACPI.h"
+#include "Variables.h"
 
 // Globals variable for input handling
 EFI_SIMPLE_TEXT_INPUT_EX_PROTOCOL *mInputEx = NULL; 
@@ -152,12 +153,6 @@ ShowHelpPopup(VOID)
     // Restore the original cursor position and attribute
     ConOut->SetAttribute(ConOut, SavedAttribute);
     ConOut->SetCursorPosition(ConOut, SavedCursorColumn, SavedCursorRow);
-}
-
-EFI_STATUS ReadAllVariables(VOID) {
-    Print(L"\n--- Reading variables (Not yet implemented) ---\n");
-    // Your variable reading logic will go here
-    return EFI_UNSUPPORTED;
 }
 
 /**
