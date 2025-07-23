@@ -22,7 +22,7 @@ typedef struct {
 } VARIABLE_ENTRY;
 
 /**
-  Display the variable data in hex, allow cursor movement, and return on Esc/Enter.
+  Display the variable data in hex, allow cursor movement, and return on ESC.
 */
 VOID
 ViewVariableData(
@@ -33,7 +33,11 @@ ViewVariableData(
   UINTN          DataSize = 0;
   UINT8         *DataBuf  = NULL;
   EFI_INPUT_KEY Key;
-  UINTN          Cols, Rows;
+ 
+  UINTN          BytesPerLine = 16;
+  UINTN          Lines;
+  UINTN          Cursor      = 0;
+  BOOLEAN        ExitView    = FALSE;
 
   // 1) Query for size first
   Status = gRT->GetVariable(
@@ -67,68 +71,93 @@ ViewVariableData(
     return;
   }
 
-  // 3) Cursor position (byte index)
-  UINTN Cursor = 0;
-
-  // 4) Enter display loop
-  for (;;) {
-    // Query screen size
-    gST->ConOut->QueryMode(gST->ConOut, gST->ConOut->Mode->Mode, &Cols, &Rows);
+  // 3) Enter navigation loop
+  while (!ExitView) {
+    // clear and redraw header
     gST->ConOut->ClearScreen(gST->ConOut);
-
-    // --- Top of screen ---
-    // Left: variable name
-    gST->ConOut->SetAttribute(gST->ConOut, EFI_WHITE);
-    Print(L"%s\n", VarEntry->Name);
-    // Right: Size:XXX Attr:YYY
+    gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_BLUE));
+    // Top line: Name on left, Size/Attr on right
     {
       CHAR16 AttrBuf[32] = L"";
       if (VarEntry->Attributes & EFI_VARIABLE_NON_VOLATILE)       StrCatS(AttrBuf, 32, L"NV ");
       if (VarEntry->Attributes & EFI_VARIABLE_BOOTSERVICE_ACCESS) StrCatS(AttrBuf, 32, L"BS ");
       if (VarEntry->Attributes & EFI_VARIABLE_RUNTIME_ACCESS)     StrCatS(AttrBuf, 32, L"RT");
-      // Align to the right
-      UINTN used  = StrLen(VarEntry->Name);
-      UINTN spare = (Cols > used) ? (Cols - used) : 0;
-      Print(L"%*sSize:0x%X Attr:%s\n", spare - 1, L"", DataSize, AttrBuf);
+      // print name + right-aligned info
+      UINTN nameLen = StrLen(VarEntry->Name);
+      gST->ConOut->SetCursorPosition(gST->ConOut, 0, 0);
+      Print(L"%s\n", VarEntry->Name);
+      Print(L"%*sSize:0x%X Attr:%s\n",
+            (gST->ConOut->Mode->CursorColumn > nameLen)
+             ? (gST->ConOut->Mode->CursorColumn - nameLen - 1)
+             : 0,
+            L"",
+            DataSize,
+            AttrBuf);
     }
 
-    // --- Middle of screen: hex dump ---
-    // 16 bytes per line
-    UINTN BytesPerLine = 16;
-    UINTN Lines        = (DataSize + BytesPerLine - 1) / BytesPerLine;
-    for (UINTN ln = 0; ln < Lines; ln++) {
-      UINTN base = ln * BytesPerLine;
-      // Start of row/column
-      for (UINTN col = 0; col < BytesPerLine; col++) {
+    //
+    // --- Middle of screen: column header + hex dump with colored offsets ---
+    //
+    Lines = (DataSize + BytesPerLine - 1) / BytesPerLine;
+
+    // 1) Column index header row print leading spaces for the row offset column
+    gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_RED, EFI_BLUE));
+    Print(L"    "); // three chars: we'll align with "%02x: "
+    for (UINTN col = 0; col < BytesPerLine; col++) {
+
+        // highlight the selected column in white, others in red
+        if (col == (Cursor % BytesPerLine)) {
+            gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_BLUE));
+        } else {
+            gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_RED,   EFI_BLUE));
+        }
+
+        Print(L"%02x ", col);
+    }
+    Print(L"\n");
+
+    // 2) Each data row: row offset + bytes
+    for (UINTN row = 0; row < Lines; row++) {
+        UINTN base = row * BytesPerLine;
+
+        // a) row offset in red, except the cursor's row in white
+        if (row == (Cursor / BytesPerLine)) {
+        gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_BLUE));
+        } else {
+        gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_RED,   EFI_BLUE));
+        }
+        // print like "10: "
+        Print(L"%02x: ", base);
+
+        // b) the actual data bytes
+        for (UINTN col = 0; col < BytesPerLine; col++) {
         UINTN idx = base + col;
         if (idx >= DataSize) {
-          Print(L"   ");
+            // past end, just blank
+            Print(L"   ");
         } else {
-          // If this byte is under cursor, highlight with green background
-          if (idx == Cursor) {
-            gST->ConOut->SetAttribute(gST->ConOut, EFI_BACKGROUND_GREEN | EFI_BLUE);
-          } else {
-            gST->ConOut->SetAttribute(gST->ConOut, EFI_BACKGROUND_BLUE  | EFI_WHITE);
-          }
-          Print(L"%02x ", DataBuf[idx]);
+            // selected byte: white on green, otherwise normal gray on blue
+            if (idx == Cursor) {
+            gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_GREEN));
+            } else {
+            gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGRAY, EFI_BLUE));
+            }
+            Print(L"%02x ", DataBuf[idx]);
         }
-      }
-      Print(L"\n");
+        }
+
+        Print(L"\n");
     }
 
-    // --- Bottom: display Type and Name ---
-    gST->ConOut->SetAttribute(gST->ConOut, EFI_WHITE);
-    Print(L"\nType: UEFI Variable    Name: %s\n", VarEntry->Name);
+    // Bottom: prompt
+    gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_BLUE));
+    Print(L"\nUse Up/Down/Left/Right arrows to move, ESC to return\n");
 
-    // Wait for key press
-    Status = gST->ConIn->ReadKeyStroke(gST->ConIn, &Key);
-    if (EFI_ERROR(Status)) {
-      UINTN ev;
-      gBS->WaitForEvent(1, &gST->ConIn->WaitForKey, &ev);
-      continue;
-    }
+    // wait for key
+    gBS->WaitForEvent(1, &gST->ConIn->WaitForKey, NULL);
+    gST->ConIn->ReadKeyStroke(gST->ConIn, &Key);
 
-    // Handle arrow keys
+    // navigation & exit
     if (Key.UnicodeChar == CHAR_NULL) {
       switch (Key.ScanCode) {
         case SCAN_LEFT:
@@ -143,26 +172,19 @@ ViewVariableData(
         case SCAN_DOWN:
           if (Cursor + BytesPerLine < DataSize) Cursor += BytesPerLine;
           break;
+        case SCAN_ESC:
+          ExitView = TRUE;
+          break;
         default:
           break;
       }
     }
-    
-    // Esc or Enter to return to list
-    else if (Key.ScanCode == SCAN_ESC ||
-             Key.UnicodeChar == CHAR_CARRIAGE_RETURN ||
-             Key.UnicodeChar == CHAR_LINEFEED)
-    {
-      break;
-    }
-
-    // Restore default attribute
-    gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGRAY, EFI_BLUE));
   }
 
+  // restore default attributes & free
+  gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGRAY, EFI_BLUE));
   FreePool(DataBuf);
 }
-
 
 EFI_STATUS
 ReadAllVariables(VOID)
