@@ -20,6 +20,10 @@
   Smbios.h
   PciDevices.c
   PciDevices.h
+  ACPI.c
+  ACPI.h
+  Variables.c
+  Variables.h
 
 [Packages]
   MdePkg/MdePkg.dec
@@ -31,10 +35,14 @@
   BaseLib
   PrintLib
   MemoryAllocationLib
+  BaseMemoryLib
+  UefiBootServicesTableLib
+  UefiRuntimeServicesTableLib
 
 [Protocols]
   gEfiPciIoProtocolGuid ## CONSUMES
   gEfiSmbiosProtocolGuid ## CONSUMES
+  gEfiSimpleTextInputExProtocolGuid ## CONSUMES 
 
 [Pcd]
 
