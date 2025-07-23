@@ -21,6 +21,148 @@ typedef struct {
   EFI_GUID  VendorGuid;
 } VARIABLE_ENTRY;
 
+/**
+  Display the variable data in hex, allow cursor movement, and return on Esc/Enter.
+*/
+VOID
+ViewVariableData(
+  IN VARIABLE_ENTRY  *VarEntry
+  )
+{
+  EFI_STATUS     Status;
+  UINTN          DataSize = 0;
+  UINT8         *DataBuf  = NULL;
+  EFI_INPUT_KEY Key;
+  UINTN          Cols, Rows;
+
+  // 1) Query for size first
+  Status = gRT->GetVariable(
+             VarEntry->Name,
+             &VarEntry->VendorGuid,
+             &VarEntry->Attributes,
+             &DataSize,
+             NULL
+           );
+  if (Status != EFI_BUFFER_TOO_SMALL) {
+    Print(L"Unable to query size: %r\n", Status);
+    return;
+  }
+
+  // 2) Allocate buffer and retrieve data
+  DataBuf = AllocatePool(DataSize);
+  if (DataBuf == NULL) {
+    Print(L"Out of resources\n");
+    return;
+  }
+  Status = gRT->GetVariable(
+             VarEntry->Name,
+             &VarEntry->VendorGuid,
+             &VarEntry->Attributes,
+             &DataSize,
+             DataBuf
+           );
+  if (EFI_ERROR(Status)) {
+    Print(L"Unable to read data: %r\n", Status);
+    FreePool(DataBuf);
+    return;
+  }
+
+  // 3) Cursor position (byte index)
+  UINTN Cursor = 0;
+
+  // 4) Enter display loop
+  for (;;) {
+    // Query screen size
+    gST->ConOut->QueryMode(gST->ConOut, gST->ConOut->Mode->Mode, &Cols, &Rows);
+    gST->ConOut->ClearScreen(gST->ConOut);
+
+    // --- Top of screen ---
+    // Left: variable name
+    gST->ConOut->SetAttribute(gST->ConOut, EFI_WHITE);
+    Print(L"%s\n", VarEntry->Name);
+    // Right: Size:XXX Attr:YYY
+    {
+      CHAR16 AttrBuf[32] = L"";
+      if (VarEntry->Attributes & EFI_VARIABLE_NON_VOLATILE)       StrCatS(AttrBuf, 32, L"NV ");
+      if (VarEntry->Attributes & EFI_VARIABLE_BOOTSERVICE_ACCESS) StrCatS(AttrBuf, 32, L"BS ");
+      if (VarEntry->Attributes & EFI_VARIABLE_RUNTIME_ACCESS)     StrCatS(AttrBuf, 32, L"RT");
+      // Align to the right
+      UINTN used  = StrLen(VarEntry->Name);
+      UINTN spare = (Cols > used) ? (Cols - used) : 0;
+      Print(L"%*sSize:0x%X Attr:%s\n", spare - 1, L"", DataSize, AttrBuf);
+    }
+
+    // --- Middle of screen: hex dump ---
+    // 16 bytes per line
+    UINTN BytesPerLine = 16;
+    UINTN Lines        = (DataSize + BytesPerLine - 1) / BytesPerLine;
+    for (UINTN ln = 0; ln < Lines; ln++) {
+      UINTN base = ln * BytesPerLine;
+      // Start of row/column
+      for (UINTN col = 0; col < BytesPerLine; col++) {
+        UINTN idx = base + col;
+        if (idx >= DataSize) {
+          Print(L"   ");
+        } else {
+          // If this byte is under cursor, highlight with green background
+          if (idx == Cursor) {
+            gST->ConOut->SetAttribute(gST->ConOut, EFI_BACKGROUND_GREEN | EFI_BLUE);
+          } else {
+            gST->ConOut->SetAttribute(gST->ConOut, EFI_BACKGROUND_BLUE  | EFI_WHITE);
+          }
+          Print(L"%02x ", DataBuf[idx]);
+        }
+      }
+      Print(L"\n");
+    }
+
+    // --- Bottom: display Type and Name ---
+    gST->ConOut->SetAttribute(gST->ConOut, EFI_WHITE);
+    Print(L"\nType: UEFI Variable    Name: %s\n", VarEntry->Name);
+
+    // Wait for key press
+    Status = gST->ConIn->ReadKeyStroke(gST->ConIn, &Key);
+    if (EFI_ERROR(Status)) {
+      UINTN ev;
+      gBS->WaitForEvent(1, &gST->ConIn->WaitForKey, &ev);
+      continue;
+    }
+
+    // Handle arrow keys
+    if (Key.UnicodeChar == CHAR_NULL) {
+      switch (Key.ScanCode) {
+        case SCAN_LEFT:
+          if (Cursor > 0) Cursor--;
+          break;
+        case SCAN_RIGHT:
+          if (Cursor + 1 < DataSize) Cursor++;
+          break;
+        case SCAN_UP:
+          if (Cursor >= BytesPerLine) Cursor -= BytesPerLine;
+          break;
+        case SCAN_DOWN:
+          if (Cursor + BytesPerLine < DataSize) Cursor += BytesPerLine;
+          break;
+        default:
+          break;
+      }
+    }
+    
+    // Esc or Enter to return to list
+    else if (Key.ScanCode == SCAN_ESC ||
+             Key.UnicodeChar == CHAR_CARRIAGE_RETURN ||
+             Key.UnicodeChar == CHAR_LINEFEED)
+    {
+      break;
+    }
+
+    // Restore default attribute
+    gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGRAY, EFI_BLUE));
+  }
+
+  FreePool(DataBuf);
+}
+
 
 EFI_STATUS
 ReadAllVariables(VOID)
@@ -166,6 +308,13 @@ ReadAllVariables(VOID)
       continue;
     }
 
+    // Handle enter key or carriage return
+    if (Key.UnicodeChar == CHAR_CARRIAGE_RETURN || Key.UnicodeChar == CHAR_LINEFEED) {
+        UINTN Index = CurrPage * ITEMS_PER_PAGE + CurrSel;
+        ViewVariableData(&List[Index]);
+        continue; // redraw the screen
+    }
+
     // Arrow keys come through ScanCode==0 for UnicodeChar, so:
     if (Key.UnicodeChar == CHAR_NULL) {
       switch (Key.ScanCode) {
@@ -211,7 +360,6 @@ ReadAllVariables(VOID)
           break;
       }
     } 
-    // FIX: Removed redundant and incorrect check for SCAN_ESC as a UnicodeChar
   }
 
   // never reached
