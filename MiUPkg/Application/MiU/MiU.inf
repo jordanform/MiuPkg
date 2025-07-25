@@ -24,6 +24,8 @@
   ACPI.h
   Variables.c
   Variables.h
+  IoSpace.c
+  IoSpace.h
 
 [Packages]
   MdePkg/MdePkg.dec
@@ -38,6 +40,7 @@
   BaseMemoryLib
   UefiBootServicesTableLib
   UefiRuntimeServicesTableLib
+  IoLib
 
 [Protocols]
   gEfiPciIoProtocolGuid ## CONSUMES

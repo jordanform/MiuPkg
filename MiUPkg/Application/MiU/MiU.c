@@ -11,6 +11,7 @@
 #include "PciDevices.h"
 #include "ACPI.h"
 #include "Variables.h"
+#include "IoSpace.h"
 
 // Globals variable for input handling
 EFI_SIMPLE_TEXT_INPUT_EX_PROTOCOL *mInputEx = NULL; 
@@ -140,6 +141,8 @@ ShowHelpPopup(VOID)
     Print(L"Alt+3 : Read ACPI Tables");
     ConOut->SetCursorPosition(ConOut, PopupLeft + 4, PopupTop + 6);
     Print(L"Alt+4 : Read All Variables");
+    ConOut->SetCursorPosition(ConOut, PopupLeft + 4, PopupTop + 7);
+    Print(L"Alt+5 : Read I/O Space");   
     
     ConOut->SetCursorPosition(ConOut, PopupLeft + 4, PopupTop + 8);
     Print(L"ENTER : View PCI Config Space");
@@ -207,6 +210,14 @@ MainLoop (VOID) {
                 mInputEx->ReadKeyStrokeEx(mInputEx, &KeyData);
                 NeedRedraw = TRUE;
                 break;
+            case '5':                         
+                ReadIoSpace();
+                Print(L"\nPress any key to return...");
+                gBS->WaitForEvent(1, &mInputEx->WaitForKeyEx, NULL);
+                mInputEx->ReadKeyStrokeEx(mInputEx, &KeyData);
+                NeedRedraw = TRUE;
+                break;
+          
         }
     } else { // If Alt is not pressed, handle other keys
         switch (KeyData.Key.ScanCode) {
