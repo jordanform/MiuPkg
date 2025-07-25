@@ -27,13 +27,38 @@ ShowIoSpace(
   BOOLEAN       ExitView = FALSE;
   EFI_INPUT_KEY Key;
 
-  // 1. Hide cursor and read all I/O values once to cache them.
+  // Define a timer event to periodically refresh the display
+  EFI_STATUS    Status;
+  EFI_EVENT     TimerEvent;
+  EFI_EVENT     WaitEvents[2];
+  UINTN         Index;
+
+  // 1. Create a timer event to trigger periodic updates
+  Status = gBS->CreateEvent(EVT_TIMER, TPL_CALLBACK, NULL, NULL, &TimerEvent);
+  if (EFI_ERROR(Status)) {
+    Print(L"Could not create timer event: %r\n", Status);
+    return;
+  }
+
+  // 2. Set the timer to trigger every second (10000000 nanoseconds)
+  Status = gBS->SetTimer(TimerEvent, TimerPeriodic, 10000000);
+  if (EFI_ERROR(Status)) {
+    Print(L"Could not set timer: %r\n", Status);
+    gBS->CloseEvent(TimerEvent);
+    return;
+  }
+
+  // 3. Prepare to wait for key input and timer events
+  WaitEvents[0] = gST->ConIn->WaitForKey;
+  WaitEvents[1] = TimerEvent;
+
+  // 4. Read all I/O values once to cache them
   gST->ConOut->EnableCursor(gST->ConOut, FALSE);
   for (UINTN i = 0; i < IO_TOTAL_BYTES; i++) {
     IoValues[i] = IoRead8(Base + (UINT16)i);
   }
 
-  // 2. Main redraw and key processing loop
+  // 5. Main redraw and key processing loop
   while (!ExitView) {
     UINTN RowSel = Selected / IO_BYTES_PER_LINE;
     UINTN ColSel = Selected % IO_BYTES_PER_LINE;
@@ -86,31 +111,35 @@ ShowIoSpace(
     gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_BLUE));
     Print(L"\nUse left/right, up/down to move, ESC to return");
 
-    // Wait for key
-    gBS->WaitForEvent(1, &gST->ConIn->WaitForKey, NULL);
-    gST->ConIn->ReadKeyStroke(gST->ConIn, &Key);
+    // 6. Wait for either key input or timer event
+    gBS->WaitForEvent(2, WaitEvents, &Index);
 
-    // Update selection based on key
-    switch (Key.ScanCode) {
-      case SCAN_UP:
-        if (Selected >= IO_BYTES_PER_LINE) Selected -= IO_BYTES_PER_LINE;
-        break;
-      case SCAN_DOWN:
-        if (Selected + IO_BYTES_PER_LINE < IO_TOTAL_BYTES) Selected += IO_BYTES_PER_LINE;
-        break;
-      case SCAN_LEFT:
-        if ((Selected % IO_BYTES_PER_LINE) != 0) Selected--;
-        break;
-      case SCAN_RIGHT:
-        if ((Selected % IO_BYTES_PER_LINE) != (IO_BYTES_PER_LINE - 1)) Selected++;
-        break;
-      case SCAN_ESC:
-        ExitView = TRUE;
-        break;
+    // 7. Process the event that occurred
+    if (Index == 0) {
+      // Key input event
+      gST->ConIn->ReadKeyStroke(gST->ConIn, &Key);
+      switch (Key.ScanCode) {
+        case SCAN_UP:    if (Selected >= IO_BYTES_PER_LINE) Selected -= IO_BYTES_PER_LINE; break;
+        case SCAN_DOWN:  if (Selected + IO_BYTES_PER_LINE < IO_TOTAL_BYTES) Selected += IO_BYTES_PER_LINE; break;
+        case SCAN_LEFT:  if ((Selected % IO_BYTES_PER_LINE) != 0) Selected--; break;
+        case SCAN_RIGHT: if ((Selected % IO_BYTES_PER_LINE) != (IO_BYTES_PER_LINE - 1)) Selected++; break;
+        case SCAN_ESC:   ExitView = TRUE; break;
+      }
+    } else if (Index == 1) {
+      // Timer event - redraw the screen
+      // Re-read all I/O values to ensure they are up-to-date
+      for (UINTN i = 0; i < IO_TOTAL_BYTES; i++) {
+        IoValues[i] = IoRead8(Base + (UINT16)i);
+      }
+      // Redraw the screen
     }
   }
 
-  // 3. Restore cursor and attributes before exiting
+  // End the timer event and close it
+  gBS->SetTimer(TimerEvent, TimerCancel, 0);
+  gBS->CloseEvent(TimerEvent);
+
+  // Restore cursor and attributes before exiting
   gST->ConOut->EnableCursor(gST->ConOut, TRUE);
   gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGRAY, EFI_BLUE));
 }
