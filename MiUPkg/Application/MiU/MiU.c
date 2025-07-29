@@ -238,7 +238,7 @@ MainLoop (VOID) {
                 break;
             case SCAN_NULL:
                 if (KeyData.Key.UnicodeChar == CHAR_CARRIAGE_RETURN) {
-                    ShowConfigSpace(&mPciList[mSelected]);
+                    ShowPCIConfigSpace(&mPciList[mSelected]);
                     NeedRedraw = TRUE;
                 } else if (KeyData.Key.UnicodeChar == L'h' || KeyData.Key.UnicodeChar == L'H') {
                     ShowHelpPopup();
@@ -265,6 +265,9 @@ EFIAPI
 UefiMain (IN EFI_HANDLE ImageHandle, IN EFI_SYSTEM_TABLE *SystemTable)
 {
   EFI_STATUS Status;
+
+  // Get the main image handle
+  gImageHandle = ImageHandle;
 
   // Initialize SimpleTextInputEx protocol for extended key input
   Status = gBS->LocateProtocol(&gEfiSimpleTextInputExProtocolGuid, NULL, (VOID **)&mInputEx);

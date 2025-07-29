@@ -1,3 +1,5 @@
+// PciDevices.c
+extern EFI_HANDLE gImageHandle;   
 #include <Uefi.h>
 #include <Library/UefiLib.h>
 #include <Library/UefiBootServicesTableLib.h>
@@ -6,6 +8,7 @@
 #include <Protocol/PciIo.h>
 #include "PciDevices.h"
 #include <MiU.h>
+#include "FileHelper.h"             
 
 PCI_ENTRY *mPciList   = NULL;
 UINTN      mPciCount  = 0;
@@ -92,7 +95,7 @@ EnumeratePciDevices (VOID)
   16x16 hexadecimal dump.
 */
 VOID
-ShowConfigSpace(PCI_ENTRY *Entry)
+ShowPCIConfigSpace(PCI_ENTRY *Entry)
 {
   UINT8         Data[256];
   EFI_INPUT_KEY Key;
@@ -194,6 +197,29 @@ ShowConfigSpace(PCI_ENTRY *Entry)
     gBS->WaitForEvent(1, &gST->ConIn->WaitForKey, NULL);
     gST->ConIn->ReadKeyStroke(gST->ConIn, &Key);
 
+  
+    // Check if the key is ctrl+S (0x13)
+    if (Key.UnicodeChar == 0x13) {
+      // Save the config space to a file
+      EFI_STATUS Status = SaveBytesToFile(
+        gImageHandle,
+        L"pci_config_dump.bin",
+        Data,
+        sizeof(Data)
+      );
+      // Print the result
+      gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_BLUE));
+      if (EFI_ERROR(Status)) {
+        Print(L"\nSave failed: %r\n", Status);
+      } else {
+        Print(L"\nSaved to pci_config_dump.bin\n");
+      }
+      // Wait for a key before continuing
+      gBS->WaitForEvent(1, &gST->ConIn->WaitForKey, NULL);
+      continue;
+    }
+
+    // Process the key input
     switch (Key.ScanCode) {
       case SCAN_UP:
         if (RowSel > 0) RowSel--;
