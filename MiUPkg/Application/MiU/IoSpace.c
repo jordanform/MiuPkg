@@ -1,5 +1,4 @@
-// IoSpace.c (New Version)
-
+extern EFI_HANDLE gImageHandle;
 #include <Uefi.h>
 #include <Library/UefiLib.h>
 #include <Library/UefiBootServicesTableLib.h>
@@ -7,6 +6,7 @@
 #include <Library/BaseLib.h>
 #include <Library/PrintLib.h>
 #include "IoSpace.h"
+#include "FileHelper.h"
 
 #define IO_BYTES_PER_LINE 16
 #define IO_TOTAL_BYTES    256
@@ -116,15 +116,38 @@ ShowIoSpace(
 
     // 7. Process the event that occurred
     if (Index == 0) {
-      // Key input event
-      gST->ConIn->ReadKeyStroke(gST->ConIn, &Key);
-      switch (Key.ScanCode) {
-        case SCAN_UP:    if (Selected >= IO_BYTES_PER_LINE) Selected -= IO_BYTES_PER_LINE; break;
-        case SCAN_DOWN:  if (Selected + IO_BYTES_PER_LINE < IO_TOTAL_BYTES) Selected += IO_BYTES_PER_LINE; break;
-        case SCAN_LEFT:  if ((Selected % IO_BYTES_PER_LINE) != 0) Selected--; break;
-        case SCAN_RIGHT: if ((Selected % IO_BYTES_PER_LINE) != (IO_BYTES_PER_LINE - 1)) Selected++; break;
-        case SCAN_ESC:   ExitView = TRUE; break;
-      }
+        // Key input event
+        gST->ConIn->ReadKeyStroke(gST->ConIn, &Key);
+
+        // Check if the key is ctrl+S (0x13)
+        if (Key.UnicodeChar == 0x13) {
+            // Save the config space to a file
+            Status = SaveBytesToFile(
+            gImageHandle,
+            L"io_config_dump.bin",
+            IoValues,
+            IO_TOTAL_BYTES
+            );
+            // Print the result
+            gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_BLUE));
+            if (EFI_ERROR(Status)) {
+                Print(L"\nSave failed: %r\n", Status);
+            } else {
+                Print(L"\nSaved to io_config_dump.bin\n");
+            }
+            // Wait for a key before continuing
+            gBS->WaitForEvent(1, &gST->ConIn->WaitForKey, NULL);
+            continue;
+        } 
+        
+        // Process arrow keys for navigation
+        switch (Key.ScanCode) {
+            case SCAN_UP:    if (Selected >= IO_BYTES_PER_LINE) Selected -= IO_BYTES_PER_LINE; break;
+            case SCAN_DOWN:  if (Selected + IO_BYTES_PER_LINE < IO_TOTAL_BYTES) Selected += IO_BYTES_PER_LINE; break;
+            case SCAN_LEFT:  if ((Selected % IO_BYTES_PER_LINE) != 0) Selected--; break;
+            case SCAN_RIGHT: if ((Selected % IO_BYTES_PER_LINE) != (IO_BYTES_PER_LINE - 1)) Selected++; break;
+            case SCAN_ESC:   ExitView = TRUE; break;
+        }
     } else if (Index == 1) {
       // Timer event - redraw the screen
       // Re-read all I/O values to ensure they are up-to-date

@@ -196,7 +196,6 @@ ShowPCIConfigSpace(PCI_ENTRY *Entry)
     // Wait and process a key
     gBS->WaitForEvent(1, &gST->ConIn->WaitForKey, NULL);
     gST->ConIn->ReadKeyStroke(gST->ConIn, &Key);
-
   
     // Check if the key is ctrl+S (0x13)
     if (Key.UnicodeChar == 0x13) {
