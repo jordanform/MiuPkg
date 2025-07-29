@@ -1,6 +1,4 @@
-//
-// Variables.c
-//
+extern EFI_HANDLE gImageHandle;
 #include <Uefi.h>
 #include <Library/UefiLib.h>
 #include <Library/UefiBootServicesTableLib.h>
@@ -10,6 +8,7 @@
 #include <Library/BaseLib.h>
 #include <Library/PrintLib.h>
 #include "Variables.h"
+#include "FileHelper.h"
 
 #define MAX_VARIABLES     1024
 #define MAX_NAME_CHARS    512
@@ -25,7 +24,7 @@ typedef struct {
   Display the variable data in hex, allow cursor movement, and return on ESC.
 */
 VOID
-ViewVariableData(
+ShowVariableData(
   IN VARIABLE_ENTRY  *VarEntry
   )
 {
@@ -333,7 +332,7 @@ ReadAllVariables(VOID)
     // Handle enter key or carriage return
     if (Key.UnicodeChar == CHAR_CARRIAGE_RETURN || Key.UnicodeChar == CHAR_LINEFEED) {
         UINTN Index = CurrPage * ITEMS_PER_PAGE + CurrSel;
-        ViewVariableData(&List[Index]);
+        ShowVariableData(&List[Index]);
         continue; // redraw the screen
     }
 
