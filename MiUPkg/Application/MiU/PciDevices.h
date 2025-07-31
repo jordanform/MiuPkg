@@ -26,4 +26,4 @@ extern UINTN      mSelected;
 CONST CHAR16* GetPciDeviceName(IN UINT16 VendorId, IN UINT16 DeviceId);
 
 // Show the 256-byte PCI configuration space in a 16x16 hex dump format
-void ShowConfigSpace(PCI_ENTRY *Entry); 
+void ShowPCIConfigSpace(PCI_ENTRY *Entry); 

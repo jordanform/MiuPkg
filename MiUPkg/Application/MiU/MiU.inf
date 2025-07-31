@@ -26,6 +26,8 @@
   Variables.h
   IoSpace.c
   IoSpace.h
+  FileHelper.c
+  FileHelper.h
 
 [Packages]
   MdePkg/MdePkg.dec
@@ -46,6 +48,8 @@
   gEfiPciIoProtocolGuid ## CONSUMES
   gEfiSmbiosProtocolGuid ## CONSUMES
   gEfiSimpleTextInputExProtocolGuid ## CONSUMES 
+  gEfiLoadedImageProtocolGuid ## CONSUMES
+  gEfiDevicePathProtocolGuid ## CONSUMES
 
 [Pcd]
 

@@ -1,6 +1,4 @@
-//
-// Variables.c
-//
+extern EFI_HANDLE gImageHandle;
 #include <Uefi.h>
 #include <Library/UefiLib.h>
 #include <Library/UefiBootServicesTableLib.h>
@@ -10,6 +8,7 @@
 #include <Library/BaseLib.h>
 #include <Library/PrintLib.h>
 #include "Variables.h"
+#include "FileHelper.h"
 
 #define MAX_VARIABLES     1024
 #define MAX_NAME_CHARS    512
@@ -25,7 +24,7 @@ typedef struct {
   Display the variable data in hex, allow cursor movement, and return on ESC.
 */
 VOID
-ViewVariableData(
+ShowVariableData(
   IN VARIABLE_ENTRY  *VarEntry
   )
 {
@@ -156,6 +155,27 @@ ViewVariableData(
     // wait for key
     gBS->WaitForEvent(1, &gST->ConIn->WaitForKey, NULL);
     gST->ConIn->ReadKeyStroke(gST->ConIn, &Key);
+
+    // Check if the key is ctrl+S (0x13)
+    if (Key.UnicodeChar == 0x13) {
+        // Save the variable to a file
+        Status = SaveBytesToFile(
+        gImageHandle,
+        L"variable_dump.bin",
+        DataBuf,
+        DataSize
+        );
+        // Print the result
+        gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_BLUE));
+        if (EFI_ERROR(Status)) {
+            Print(L"\nSave failed: %r\n", Status);
+        } else {
+            Print(L"\nSaved to variable_dump.bin\n");
+        }
+        // Wait for a key before continuing
+        gBS->WaitForEvent(1, &gST->ConIn->WaitForKey, NULL);
+        continue;
+    } 
 
     // navigation & exit
     if (Key.UnicodeChar == CHAR_NULL) {
@@ -333,7 +353,7 @@ ReadAllVariables(VOID)
     // Handle enter key or carriage return
     if (Key.UnicodeChar == CHAR_CARRIAGE_RETURN || Key.UnicodeChar == CHAR_LINEFEED) {
         UINTN Index = CurrPage * ITEMS_PER_PAGE + CurrSel;
-        ViewVariableData(&List[Index]);
+        ShowVariableData(&List[Index]);
         continue; // redraw the screen
     }
 
