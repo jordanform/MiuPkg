@@ -156,6 +156,27 @@ ShowVariableData(
     gBS->WaitForEvent(1, &gST->ConIn->WaitForKey, NULL);
     gST->ConIn->ReadKeyStroke(gST->ConIn, &Key);
 
+    // Check if the key is ctrl+S (0x13)
+    if (Key.UnicodeChar == 0x13) {
+        // Save the variable to a file
+        Status = SaveBytesToFile(
+        gImageHandle,
+        L"variable_dump.bin",
+        DataBuf,
+        DataSize
+        );
+        // Print the result
+        gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_BLUE));
+        if (EFI_ERROR(Status)) {
+            Print(L"\nSave failed: %r\n", Status);
+        } else {
+            Print(L"\nSaved to variable_dump.bin\n");
+        }
+        // Wait for a key before continuing
+        gBS->WaitForEvent(1, &gST->ConIn->WaitForKey, NULL);
+        continue;
+    } 
+
     // navigation & exit
     if (Key.UnicodeChar == CHAR_NULL) {
       switch (Key.ScanCode) {
