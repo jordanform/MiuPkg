@@ -12,6 +12,7 @@
 #include "ACPI.h"
 #include "Variables.h"
 #include "IoSpace.h"
+#include "ShowMemoryMap.h"
 
 // Globals variable for input handling
 EFI_SIMPLE_TEXT_INPUT_EX_PROTOCOL *mInputEx = NULL; 
@@ -102,7 +103,7 @@ ShowHelpPopup(VOID)
 
     // Define popup dimensions
     PopupWidth = 55;
-    PopupHeight = 11;
+    PopupHeight = 15;
     PopupLeft = (Columns - PopupWidth) / 2;
     PopupTop = (Rows - PopupHeight) / 2;
 
@@ -143,10 +144,12 @@ ShowHelpPopup(VOID)
     Print(L"Alt+4 : Read All Variables");
     ConOut->SetCursorPosition(ConOut, PopupLeft + 4, PopupTop + 7);
     Print(L"Alt+5 : Read I/O Space");   
-    
     ConOut->SetCursorPosition(ConOut, PopupLeft + 4, PopupTop + 8);
+    Print(L"Alt+6 : Show Memory Map"); 
+    
+    ConOut->SetCursorPosition(ConOut, PopupLeft + 4, PopupTop + 10);
     Print(L"ENTER : View PCI Config Space");
-    ConOut->SetCursorPosition(ConOut, PopupLeft + 4, PopupTop + 9);
+    ConOut->SetCursorPosition(ConOut, PopupLeft + 4, PopupTop + 11);
     Print(L"ESC   : Quit");
 
     // Wait for a key press to close the popup
@@ -212,6 +215,13 @@ MainLoop (VOID) {
                 break;
             case '5':                         
                 ReadIoSpace();
+                Print(L"\nPress any key to return...");
+                gBS->WaitForEvent(1, &mInputEx->WaitForKeyEx, NULL);
+                mInputEx->ReadKeyStrokeEx(mInputEx, &KeyData);
+                NeedRedraw = TRUE;
+                break;
+            case '6':                         
+                ShowMemoryMap();
                 Print(L"\nPress any key to return...");
                 gBS->WaitForEvent(1, &mInputEx->WaitForKeyEx, NULL);
                 mInputEx->ReadKeyStrokeEx(mInputEx, &KeyData);

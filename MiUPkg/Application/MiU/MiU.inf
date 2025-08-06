@@ -28,6 +28,8 @@
   IoSpace.h
   FileHelper.c
   FileHelper.h
+  ShowMemoryMap.c
+  ShowMemoryMap.h
 
 [Packages]
   MdePkg/MdePkg.dec
