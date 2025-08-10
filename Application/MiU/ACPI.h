@@ -1,6 +1,6 @@
 #pragma once
 #include <Uefi.h>
-#include <IndustryStandard/Acpi.h> 
+#include <Guid/Acpi.h>
 
 // Main entry point for ACPI feature
 VOID ReadAcpiTables(VOID);

@@ -16,16 +16,18 @@ typedef struct {
   CHAR16    *Name;
 } PCI_NAME_ENTRY;
 
-STATIC PCI_NAME_ENTRY mPciNameTable[] = {
-  { 0x8086, 0x1237, L"Intel 82441FX MARS Pentium Pro to PCI" },
-  { 0x8086, 0x7000, L"Intel 82371SB ISA bridge" },
-  { 0x8086, 0x7010, L"Intel Triton PIIX3 IDE controller" },
-  { 0x8086, 0x7113, L"Intel 82371AB Power Management Bridge" },
-  { 0x8086, 0x100E, L"Intel Ethernet controller" },
-  { 0x1234, 0x1111, L"VGA controller" },
-  { 0,      0,      NULL }
-};
-
-// Add more function prototypes here as you create new features
+/**
+  Returns the name of a PCI device based on its VendorId and DeviceId.
+  
+  @param  VendorId   The Vendor ID of the PCI device.
+  @param  DeviceId   The Device ID of the PCI device.
+  
+  @return A pointer to the device name string, or "Unknown Device" if not found.
+*/
+CONST CHAR16 *
+GetPciDeviceName (
+  IN UINT16 VendorId,
+  IN UINT16 DeviceId
+  );
 
 #endif // _MIU_H_
