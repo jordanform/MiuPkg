@@ -1,7 +1,7 @@
 #pragma once
 #include <Uefi.h>
 #include <Protocol/Smbios.h>
-#include <IndustryStandard/Smbios.h>
+#include <IndustryStandard/SmBios.h>
 
 // Forward declaration for SMBIOS_ENTRY struct
 typedef struct {
