@@ -12,12 +12,12 @@
 ##
 
 [Defines]
-  PLATFORM_NAME                  = MiU
+  PLATFORM_NAME                  = MiUPkg
   PLATFORM_GUID                  = 7B2A1E2C-5F3B-4A1C-9B2D-8C1F2A3B4C5D
   PLATFORM_VERSION               = 0.1
   DSC_SPECIFICATION              = 0x00010005
   SUPPORTED_ARCHITECTURES        = IA32|X64|ARM|AARCH64
-  OUTPUT_DIRECTORY               = Build/MiU
+  OUTPUT_DIRECTORY               = Build/MiUPkg
   BUILD_TARGETS                  = DEBUG|RELEASE|NOOPT
   SKUID_IDENTIFIER               = DEFAULT
 
