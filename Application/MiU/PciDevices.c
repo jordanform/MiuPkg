@@ -8,7 +8,17 @@ extern EFI_HANDLE gImageHandle;
 #include <Protocol/PciIo.h>
 #include "PciDevices.h"
 #include <MiU.h>
-#include "FileHelper.h"             
+#include "FileHelper.h"
+
+STATIC PCI_NAME_ENTRY mPciNameTable[] = {
+  { 0x8086, 0x1237, L"Intel 82441FX MARS Pentium Pro to PCI" },
+  { 0x8086, 0x7000, L"Intel 82371SB ISA bridge" },
+  { 0x8086, 0x7010, L"Intel Triton PIIX3 IDE controller" },
+  { 0x8086, 0x7113, L"Intel 82371AB Power Management Bridge" },
+  { 0x8086, 0x100E, L"Intel Ethernet controller" },
+  { 0x1234, 0x1111, L"VGA controller" },
+  { 0,      0,      NULL }
+};
 
 PCI_ENTRY *mPciList   = NULL;
 UINTN      mPciCount  = 0;
