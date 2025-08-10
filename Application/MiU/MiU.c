@@ -213,8 +213,13 @@ MainLoop (VOID) {
                 mInputEx->ReadKeyStrokeEx(mInputEx, &KeyData);
                 NeedRedraw = TRUE;
                 break;
-            case '5':                         
-                ReadIoSpace();
+            case '5':
+                #if defined(MDE_CPU_AARCH64)
+                  // On ARM64, reading I/O space is not supported
+                  Print(L"Reading I/O space is not supported on ARM64 systems.\n");
+                #else
+                  ReadIoSpace();
+                #endif
                 Print(L"\nPress any key to return...");
                 gBS->WaitForEvent(1, &mInputEx->WaitForKeyEx, NULL);
                 mInputEx->ReadKeyStrokeEx(mInputEx, &KeyData);
