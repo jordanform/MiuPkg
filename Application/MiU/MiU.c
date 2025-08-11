@@ -135,17 +135,17 @@ ShowHelpPopup(VOID)
     ConOut->SetAttribute(ConOut, EFI_TEXT_ATTR(EFI_BLACK, EFI_LIGHTGRAY));
     
     ConOut->SetCursorPosition(ConOut, PopupLeft + 4, PopupTop + 3);
-    Print(L"Alt+1 : Show PCI Device List (Current View)");
+    Print(L"F1 : Show PCI Device List (Current View)");
     ConOut->SetCursorPosition(ConOut, PopupLeft + 4, PopupTop + 4);
-    Print(L"Alt+2 : Read SMBIOS Data");
+    Print(L"F2 : Read SMBIOS Data");
     ConOut->SetCursorPosition(ConOut, PopupLeft + 4, PopupTop + 5);
-    Print(L"Alt+3 : Read ACPI Tables");
+    Print(L"F3 : Read ACPI Tables");
     ConOut->SetCursorPosition(ConOut, PopupLeft + 4, PopupTop + 6);
-    Print(L"Alt+4 : Read All Variables");
+    Print(L"F4 : Read All Variables");
     ConOut->SetCursorPosition(ConOut, PopupLeft + 4, PopupTop + 7);
-    Print(L"Alt+5 : Read I/O Space");   
+    Print(L"F5 : Read I/O Space");
     ConOut->SetCursorPosition(ConOut, PopupLeft + 4, PopupTop + 8);
-    Print(L"Alt+6 : Show Memory Map"); 
+    Print(L"F6 : Show Memory Map");
     
     ConOut->SetCursorPosition(ConOut, PopupLeft + 4, PopupTop + 10);
     Print(L"ENTER : View PCI Config Space");
@@ -185,84 +185,126 @@ MainLoop (VOID) {
         continue; // Skip if there's an error reading the key
     }
 
-    // Check for Alt modifier first
-    if ((KeyData.KeyState.KeyShiftState & (EFI_LEFT_ALT_PRESSED | EFI_RIGHT_ALT_PRESSED)) != 0) {
-        switch(KeyData.Key.UnicodeChar) {
-            case '1':
-                // Already on this screen, so just force a redraw
-                NeedRedraw = TRUE;
-                break;
-            case '2':
-                ReadSmbiosData();
-                Print(L"\nPress any key to return...");
-                gBS->WaitForEvent(1, &mInputEx->WaitForKeyEx, NULL);
-                mInputEx->ReadKeyStrokeEx(mInputEx, &KeyData);
-                NeedRedraw = TRUE;
-                break;
-            case '3':
-                ReadAcpiTables();
-                Print(L"\nPress any key to return...");
-                gBS->WaitForEvent(1, &mInputEx->WaitForKeyEx, NULL);
-                mInputEx->ReadKeyStrokeEx(mInputEx, &KeyData);
-                NeedRedraw = TRUE;
-                break;
-            case '4':
-                ReadAllVariables();
-                Print(L"\nPress any key to return...");
-                gBS->WaitForEvent(1, &mInputEx->WaitForKeyEx, NULL);
-                mInputEx->ReadKeyStrokeEx(mInputEx, &KeyData);
-                NeedRedraw = TRUE;
-                break;
-            case '5':
-                #if defined(MDE_CPU_AARCH64)
-                  // On ARM64, reading I/O space is not supported
-                  Print(L"Reading I/O space is not supported on ARM64 systems.\n");
-                #else
-                  ReadIoSpace();
-                #endif
-                Print(L"\nPress any key to return...");
-                gBS->WaitForEvent(1, &mInputEx->WaitForKeyEx, NULL);
-                mInputEx->ReadKeyStrokeEx(mInputEx, &KeyData);
-                NeedRedraw = TRUE;
-                break;
-            case '6':                         
-                ShowMemoryMap();
-                Print(L"\nPress any key to return...");
-                gBS->WaitForEvent(1, &mInputEx->WaitForKeyEx, NULL);
-                mInputEx->ReadKeyStrokeEx(mInputEx, &KeyData);
-                NeedRedraw = TRUE;
-                break;
-          
+    // check F1~F6 keys
+    switch (KeyData.Key.ScanCode) {
+      case SCAN_F1:
+        // Redraw the device list
+        NeedRedraw = TRUE;
+        break;
+
+      case SCAN_F2:
+        ReadSmbiosData();
+        Print(L"\nPress any key to return...");
+        gBS->WaitForEvent(1, &mInputEx->WaitForKeyEx, NULL);
+        mInputEx->ReadKeyStrokeEx(mInputEx, &KeyData);
+        NeedRedraw = TRUE;
+        break;
+
+      case SCAN_F3:
+        ReadAcpiTables();
+        Print(L"\nPress any key to return...");
+        gBS->WaitForEvent(1, &mInputEx->WaitForKeyEx, NULL);
+        mInputEx->ReadKeyStrokeEx(mInputEx, &KeyData);
+        NeedRedraw = TRUE;
+        break;
+
+      case SCAN_F4:
+        ReadAllVariables();
+        Print(L"\nPress any key to return...");
+        gBS->WaitForEvent(1, &mInputEx->WaitForKeyEx, NULL);
+        mInputEx->ReadKeyStrokeEx(mInputEx, &KeyData);
+        NeedRedraw = TRUE;
+        break;
+
+      case SCAN_F5:
+        #if defined(MDE_CPU_AARCH64)
+          Print(L"Reading I/O space is not supported on ARM64 systems.\n");
+        #else
+          ReadIoSpace();
+        #endif
+        Print(L"\nPress any key to return...");
+        gBS->WaitForEvent(1, &mInputEx->WaitForKeyEx, NULL);
+        mInputEx->ReadKeyStrokeEx(mInputEx, &KeyData);
+        NeedRedraw = TRUE;
+        break;
+
+      case SCAN_F6:
+        ShowMemoryMap();
+        Print(L"\nPress any key to return...");
+        gBS->WaitForEvent(1, &mInputEx->WaitForKeyEx, NULL);
+        mInputEx->ReadKeyStrokeEx(mInputEx, &KeyData);
+        NeedRedraw = TRUE;
+        break;
+
+      // Handle arrow keys and ESC
+      case SCAN_UP:
+        if (mSelected > 0) { --mSelected; NeedRedraw = TRUE; }
+        break;
+      case SCAN_DOWN:
+        if (mSelected + 1 < mPciCount) { ++mSelected; NeedRedraw = TRUE; }
+        break;
+      case SCAN_ESC:
+        ExitLoop = TRUE;
+        break;
+      case SCAN_NULL:
+        if (KeyData.Key.UnicodeChar == CHAR_CARRIAGE_RETURN) {
+          ShowPCIConfigSpace(&mPciList[mSelected]);
+          NeedRedraw = TRUE;
+        } else if (KeyData.Key.UnicodeChar == L'h' || KeyData.Key.UnicodeChar == L'H') {
+          ShowHelpPopup();
+          NeedRedraw = TRUE;
         }
-    } else { // If Alt is not pressed, handle other keys
-        switch (KeyData.Key.ScanCode) {
-            case SCAN_UP:
-                if (mSelected > 0) {
-                --mSelected;
-                NeedRedraw = TRUE;
-                }
-                break;
-            case SCAN_DOWN:
-                if (mSelected + 1 < mPciCount) {
-                ++mSelected;
-                NeedRedraw = TRUE;
-                }
-                break;
-            case SCAN_ESC:
-                ExitLoop = TRUE;
-                break;
-            case SCAN_NULL:
-                if (KeyData.Key.UnicodeChar == CHAR_CARRIAGE_RETURN) {
-                    ShowPCIConfigSpace(&mPciList[mSelected]);
-                    NeedRedraw = TRUE;
-                } else if (KeyData.Key.UnicodeChar == L'h' || KeyData.Key.UnicodeChar == L'H') {
-                    ShowHelpPopup();
-                    NeedRedraw = TRUE;
-                }
-                break;
-            default:
-                break;
-        }
+        break;
+      default:
+        break;
+    }
+
+    // If the key was not handled, check for other keys
+    if (KeyData.Key.ScanCode == SCAN_NULL) {
+      switch (KeyData.Key.UnicodeChar) {
+        case L'1': NeedRedraw = TRUE; break;
+        case L'2':
+          ReadSmbiosData();
+          Print(L"\nPress any key to return...");
+          gBS->WaitForEvent(1, &mInputEx->WaitForKeyEx, NULL);
+          mInputEx->ReadKeyStrokeEx(mInputEx, &KeyData);
+          NeedRedraw = TRUE;
+          break;
+        case L'3':
+          ReadAcpiTables();
+          Print(L"\nPress any key to return...");
+          gBS->WaitForEvent(1, &mInputEx->WaitForKeyEx, NULL);
+          mInputEx->ReadKeyStrokeEx(mInputEx, &KeyData);
+          NeedRedraw = TRUE;
+          break;
+        case L'4':
+          ReadAllVariables();
+          Print(L"\nPress any key to return...");
+          gBS->WaitForEvent(1, &mInputEx->WaitForKeyEx, NULL);
+          mInputEx->ReadKeyStrokeEx(mInputEx, &KeyData);
+          NeedRedraw = TRUE;
+          break;
+        case L'5':
+        #if defined(MDE_CPU_AARCH64)
+          Print(L"Reading I/O space is not supported on ARM64 systems.\n");
+        #else
+          ReadIoSpace();
+        #endif
+          Print(L"\nPress any key to return...");
+          gBS->WaitForEvent(1, &mInputEx->WaitForKeyEx, NULL);
+          mInputEx->ReadKeyStrokeEx(mInputEx, &KeyData);
+          NeedRedraw = TRUE;
+          break;
+        case L'6':
+          ShowMemoryMap();
+          Print(L"\nPress any key to return...");
+          gBS->WaitForEvent(1, &mInputEx->WaitForKeyEx, NULL);
+          mInputEx->ReadKeyStrokeEx(mInputEx, &KeyData);
+          NeedRedraw = TRUE;
+          break;
+        default:
+          break;
+      }
     }
 
     // If a key was pressed that changed the state, redraw the screen.
