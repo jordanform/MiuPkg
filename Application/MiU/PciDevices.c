@@ -17,6 +17,10 @@ STATIC PCI_NAME_ENTRY mPciNameTable[] = {
   { 0x8086, 0x7113, L"Intel 82371AB Power Management Bridge" },
   { 0x8086, 0x100E, L"Intel Ethernet controller" },
   { 0x1234, 0x1111, L"VGA controller" },
+  { 0x1B36, 0x0008, L"Bridge Device - Host/PCI bridge" },
+  { 0x1AF4, 0x1000, L"Network Controller - Ethernet controller" },
+  { 0x1AF4, 0x1050, L"Display controller" },
+  { 0x1B36, 0x000D, L"Serial Bus Controllers" },
   { 0,      0,      NULL }
 };
 
