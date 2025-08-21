@@ -379,6 +379,9 @@ STATIC VOID SmbiosMainLoop() {
             INTN idx = FindSmbiosIndexByType(Want);
             if (idx >= 0) {
               mSmbiosSelected = (UINTN)idx;
+              // jump straight into detail view
+              ShowSmbiosRecordDetail(&mSmbiosList[mSmbiosSelected]);
+              // return to list after ESC in detail view
               DrawSmbiosList();
             } else {
               // Type not found, show message
