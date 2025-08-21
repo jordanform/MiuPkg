@@ -92,49 +92,204 @@ STATIC CONST CHAR8* GetSmbiosString(IN SMBIOS_STRUCTURE *SmbiosHeader, IN SMBIOS
 */
 STATIC VOID ShowSmbiosRecordDetail(IN SMBIOS_ENTRY *Entry) {
   EFI_INPUT_KEY Key;
-  gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_BLUE));
+  UINTN SavedAttr = gST->ConOut->Mode->Attribute;
+
   gST->ConOut->ClearScreen(gST->ConOut);
+
+  //
+  // Header line: white on red background
+  //
+  gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_RED));
   Print(L"--- SMBIOS Record Detail ---\n");
-  Print(L"Type: %d (%s)\n", Entry->Header->Type, GetSmbiosTypeName(Entry->Header->Type));
-  Print(L"Handle: 0x%04X\n", Entry->Handle);
-  Print(L"Length: 0x%02X\n\n", Entry->Header->Length);
-  switch(Entry->Header->Type) {
+
+  //
+  // Back to main theme (blue background)
+  //
+  gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGRAY, EFI_BLUE));
+
+  //
+  // "Type:" (white) + value (yellow)
+  //
+  gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_BLUE));
+  Print(L"Type: ");
+  gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_YELLOW, EFI_BLUE));
+  Print(L"%d (%s)\n", Entry->Header->Type, GetSmbiosTypeName(Entry->Header->Type));
+
+  //
+  // "Handle:" (white) + value (yellow)
+  //
+  gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_BLUE));
+  Print(L"Handle: ");
+  gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_YELLOW, EFI_BLUE));
+  Print(L"0x%04X\n", Entry->Handle);
+
+  //
+  // "Length:" (white) + value (yellow)
+  //
+  gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_BLUE));
+  Print(L"Length: ");
+  gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_YELLOW, EFI_BLUE));
+  Print(L"0x%02X\n\n", Entry->Header->Length);
+
+  //
+  // Decoded view for known types with the same color rule (title white, value yellow)
+  //
+  switch (Entry->Header->Type) {
     case SMBIOS_TYPE_SYSTEM_INFORMATION: {
       SMBIOS_TABLE_TYPE1 *Rec = (SMBIOS_TABLE_TYPE1 *)Entry->Header;
-      Print(L"  Manufacturer: %a\n", GetSmbiosString(Entry->Header, Rec->Manufacturer));
-      Print(L"  Product Name: %a\n", GetSmbiosString(Entry->Header, Rec->ProductName));
-      Print(L"  Version:      %a\n", GetSmbiosString(Entry->Header, Rec->Version));
-      Print(L"  Serial Number:%a\n", GetSmbiosString(Entry->Header, Rec->SerialNumber));
+
+      gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_BLUE));
+      Print(L"  Manufacturer: ");
+      gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_YELLOW, EFI_BLUE));
+      Print(L"%a\n", GetSmbiosString(Entry->Header, Rec->Manufacturer));
+
+      gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_BLUE));
+      Print(L"  Product Name: ");
+      gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_YELLOW, EFI_BLUE));
+      Print(L"%a\n", GetSmbiosString(Entry->Header, Rec->ProductName));
+
+      gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_BLUE));
+      Print(L"  Version:      ");
+      gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_YELLOW, EFI_BLUE));
+      Print(L"%a\n", GetSmbiosString(Entry->Header, Rec->Version));
+
+      gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_BLUE));
+      Print(L"  Serial Number:");
+      gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_YELLOW, EFI_BLUE));
+      Print(L"%a\n\n", GetSmbiosString(Entry->Header, Rec->SerialNumber));
       break;
     }
+
     case SMBIOS_TYPE_BIOS_INFORMATION: {
       SMBIOS_TABLE_TYPE0 *Rec = (SMBIOS_TABLE_TYPE0 *)Entry->Header;
-      Print(L"  Vendor:       %a\n", GetSmbiosString(Entry->Header, Rec->Vendor));
-      Print(L"  Version:      %a\n", GetSmbiosString(Entry->Header, Rec->BiosVersion));
-      Print(L"  Release Date: %a\n", GetSmbiosString(Entry->Header, Rec->BiosReleaseDate));
+
+      gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_BLUE));
+      Print(L"  Vendor:       ");
+      gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_YELLOW, EFI_BLUE));
+      Print(L"%a\n", GetSmbiosString(Entry->Header, Rec->Vendor));
+
+      gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_BLUE));
+      Print(L"  Version:      ");
+      gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_YELLOW, EFI_BLUE));
+      Print(L"%a\n", GetSmbiosString(Entry->Header, Rec->BiosVersion));
+
+      gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_BLUE));
+      Print(L"  Release Date: ");
+      gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_YELLOW, EFI_BLUE));
+      Print(L"%a\n\n", GetSmbiosString(Entry->Header, Rec->BiosReleaseDate));
       break;
     }
-    default: {
-      UINT8 *Data = (UINT8 *)Entry->Header;
-      Print(L"Raw data dump:\n  Ofs: 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F\n");
-      Print(L"  --------------------------------------------------\n");
-      for (UINTN i = 0; i < Entry->Header->Length; i += 16) {
-        Print(L"  %02Xh: ", i);
-        for (UINTN j = 0; j < 16; j++) {
-          if (i + j < Entry->Header->Length) {
-            Print(L"%02X ", Data[i+j]);
-          }
-        }
-        Print(L"\n");
-      }
+
+    default:
+      // keep behavior below (raw dump); known types will also show raw dump for consistency
       break;
+  }
+
+  //
+  // Raw dump title and header (title white on blue; bytes lightgray on blue)
+  //
+  gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_BLUE));
+  Print(L"Raw data dump:\n");
+  Print(L"Ofs: 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F\n");
+  Print(L"  --------------------------------------------------\n");
+
+  {
+    UINT8 *Data = (UINT8 *)Entry->Header;
+    for (UINTN i = 0; i < Entry->Header->Length; i += 16) {
+      gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_BLUE));
+      Print(L"  %02Xh: ", i);
+      for (UINTN j = 0; j < 16; j++) {
+        if (i + j < Entry->Header->Length) {
+          gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGRAY, EFI_BLUE));
+          Print(L"%02X ", Data[i + j]);
+        }
+      }
+      Print(L"\n");
     }
   }
+
+  //
+  // Footer prompt
+  //
+  gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_BLUE));
   Print(L"\nPress ESC to return...");
+
   do {
     gBS->WaitForEvent(1, &gST->ConIn->WaitForKey, NULL);
     gST->ConIn->ReadKeyStroke(gST->ConIn, &Key);
   } while (Key.ScanCode != SCAN_ESC);
+
+  gST->ConOut->SetAttribute(gST->ConOut, SavedAttr);
+}
+
+/**
+  Prompt user to input 2-digit hexadecimal, return TRUE if successfully parsed;
+  Return FALSE if user presses ESC to cancel.
+  The result will be stored into OutType (0x00 ~ 0xFF).
+*/
+STATIC
+BOOLEAN
+PromptSmbiosTypeHex(OUT UINT8 *OutType)
+{
+  CHAR16        Buffer[3] = L"";  // 2 hex chars + NUL
+  UINTN         Index     = 0;
+  EFI_INPUT_KEY Key;
+
+  gST->ConOut->ClearScreen(gST->ConOut);
+  gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGRAY, EFI_BLUE));
+  Print(L"Jump to SMBIOS Type\n\n");
+  gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_BLUE));
+  Print(L"Enter Type (00-FF), then press Enter.  ESC to cancel.\n\n");
+  Print(L"Type: 0x");
+  gST->ConOut->EnableCursor(gST->ConOut, TRUE);
+
+  while (TRUE) {
+    gBS->WaitForEvent(1, &gST->ConIn->WaitForKey, NULL);
+    gST->ConIn->ReadKeyStroke(gST->ConIn, &Key);
+
+    if (Key.UnicodeChar == CHAR_CARRIAGE_RETURN) {
+      // Must have 1~2 digits to accept
+      if (Index > 0) {
+        UINTN val = StrHexToUintn(Buffer);
+        if (val <= 0xFF) {
+          *OutType = (UINT8)val;
+          gST->ConOut->EnableCursor(gST->ConOut, FALSE);
+          return TRUE;
+        }
+      }
+      // Invalid input, keep waiting
+    } else if (Key.ScanCode == SCAN_ESC) {
+      gST->ConOut->EnableCursor(gST->ConOut, FALSE);
+      return FALSE; // User canceled
+    } else if (Key.UnicodeChar == CHAR_BACKSPACE && Index > 0) {
+      Index--;
+      Buffer[Index] = L'\0';
+      Print(L"\b \b"); // Visual backspace
+    } else if (Index < 2 &&
+              ((Key.UnicodeChar >= L'0' && Key.UnicodeChar <= L'9') ||
+               (Key.UnicodeChar >= L'a' && Key.UnicodeChar <= L'f') ||
+               (Key.UnicodeChar >= L'A' && Key.UnicodeChar <= L'F'))) {
+      Buffer[Index++] = Key.UnicodeChar;
+      Print(L"%c", Key.UnicodeChar);
+    }
+  }
+}
+
+/**
+  Searches for a specific SMBIOS type in the list.
+  Returns the index of the first matching type, or -1 if not found.
+*/
+STATIC
+INTN
+FindSmbiosIndexByType(IN UINT8 Type)
+{
+  if (mSmbiosList == NULL || mSmbiosCount == 0) return -1;
+  for (UINTN i = 0; i < mSmbiosCount; i++) {
+    if (mSmbiosList[i].Header != NULL && mSmbiosList[i].Header->Type == Type) {
+      return (INTN)i;
+    }
+  }
+  return -1;
 }
 
 /**
@@ -171,6 +326,8 @@ STATIC VOID DrawSmbiosList() {
     UnicodeSPrint(HandleString, sizeof(HandleString), L"%04Xh", E->Handle);
     Print(L"%-8s %04Xh\n", HandleString, E->Header->Length);
   }
+
+  Print(L"\nHint: Press 't' to jump to a specific SMBIOS Type (00-FF)\n");
   
   // Restore default attribute
   gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_LIGHTGRAY, EFI_BLUE));
@@ -214,6 +371,27 @@ STATIC VOID SmbiosMainLoop() {
         if (Key.UnicodeChar == CHAR_CARRIAGE_RETURN) {
           ShowSmbiosRecordDetail(&mSmbiosList[mSmbiosSelected]);
           DrawSmbiosList();
+        }
+        // Check for 't' key to jump to a specific type
+        else if (Key.UnicodeChar == L't' || Key.UnicodeChar == L'T') {
+          UINT8 Want;
+          if (PromptSmbiosTypeHex(&Want)) {
+            INTN idx = FindSmbiosIndexByType(Want);
+            if (idx >= 0) {
+              mSmbiosSelected = (UINTN)idx;
+              DrawSmbiosList();
+            } else {
+              // Type not found, show message
+              gST->ConOut->SetAttribute(gST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_BLUE));
+              Print(L"\nType 0x%02x not found. Press any key...", Want);
+              gBS->WaitForEvent(1, &gST->ConIn->WaitForKey, NULL);
+              // Redraw the list after waiting
+              DrawSmbiosList();
+            }
+          } else {
+            // User canceled the type input
+            DrawSmbiosList();
+          }
         }
         break;
     }
