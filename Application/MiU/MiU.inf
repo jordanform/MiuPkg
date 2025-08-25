@@ -30,6 +30,8 @@
   FileHelper.h
   ShowMemoryMap.c
   ShowMemoryMap.h
+  ShowBootOption.c
+  ShowBootOption.h
 
 [Packages]
   MdePkg/MdePkg.dec
@@ -45,6 +47,7 @@
   UefiBootServicesTableLib
   UefiRuntimeServicesTableLib
   IoLib
+  DevicePathLib
 
 [Protocols]
   gEfiPciIoProtocolGuid ## CONSUMES
