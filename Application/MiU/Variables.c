@@ -309,7 +309,7 @@ ReadAllVariables(VOID)
 
       // highlight selected line in green
       if (i == CurrSel) {
-        gST->ConOut->SetAttribute(gST->ConOut, EFI_BACKGROUND_GREEN | EFI_BLUE);
+        gST->ConOut->SetAttribute(gST->ConOut, EFI_BACKGROUND_GREEN | EFI_YELLOW);
       } else {
         gST->ConOut->SetAttribute(gST->ConOut, EFI_BACKGROUND_BLUE  | EFI_WHITE);
       }
